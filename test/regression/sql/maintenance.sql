@@ -124,5 +124,33 @@ SELECT * FROM maint_expire ORDER BY a;
 
 DROP TABLE maint_expire;
 
+-- =============================================================
+-- cleanup_old_files (no args)
+-- =============================================================
+
+CREATE TABLE maint_cleanup_old (a int) USING ducklake;
+INSERT INTO maint_cleanup_old VALUES (1);
+
+-- Prior maintenance tests may have left files scheduled for deletion
+SELECT count(*) >= 0 AS ok FROM ducklake.cleanup_old_files();
+
+SELECT * FROM maint_cleanup_old ORDER BY a;
+
+DROP TABLE maint_cleanup_old;
+
+-- =============================================================
+-- cleanup_orphaned_files (no args)
+-- =============================================================
+
+CREATE TABLE maint_cleanup_orphan (a int) USING ducklake;
+INSERT INTO maint_cleanup_orphan VALUES (1);
+
+-- Prior tests may have left orphaned files on disk
+SELECT count(*) >= 0 AS ok FROM ducklake.cleanup_orphaned_files();
+
+SELECT * FROM maint_cleanup_orphan ORDER BY a;
+
+DROP TABLE maint_cleanup_orphan;
+
 -- Restore default
 CALL ducklake.set_option('data_inlining_row_limit', 0);
