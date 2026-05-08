@@ -101,6 +101,13 @@ private:
 	duckdb::unique_ptr<duckdb::Connection> connection;
 	std::string default_dbname;
 	bool secrets_valid;
+
+public:
+	static duckdb::unique_ptr<duckdb::QueryResult> DuckDBQueryOrThrow(duckdb::ClientContext &context,
+	                                                                 const std::string &query);
+	static duckdb::unique_ptr<duckdb::QueryResult> DuckDBQueryOrThrow(duckdb::Connection &connection,
+	                                                                 const std::string &query);
+	static duckdb::unique_ptr<duckdb::QueryResult> DuckDBQueryOrThrow(const std::string &query);
 };
 
 } // namespace pgddb

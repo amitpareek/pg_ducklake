@@ -79,7 +79,7 @@ extern "C" {
 
 DECLARE_PG_FUNCTION(pgduckdb_raw_query) {
 	const char *query = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	auto result = pgduckdb::DuckDBQueryOrThrow(query);
+	auto result = pgddb::DuckDBManager::DuckDBQueryOrThrow(query);
 	elog(NOTICE, "result: %s", result->ToString().c_str());
 	PG_RETURN_BOOL(true);
 }

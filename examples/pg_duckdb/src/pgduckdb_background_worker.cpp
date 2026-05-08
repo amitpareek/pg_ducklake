@@ -145,7 +145,7 @@ BackgroundWorkerCheck(duckdb::Connection &connection, int64_t &last_activity_cou
 	if (last_activity_count != new_activity_count) {
 		last_activity_count = new_activity_count;
 		/* Trigger some activity to restart the syncing */
-		pgduckdb::DuckDBQueryOrThrow(connection, "FROM duckdb_tables() limit 0");
+		pgddb::DuckDBManager::DuckDBQueryOrThrow(connection, "FROM duckdb_tables() limit 0");
 	}
 
 	/*

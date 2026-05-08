@@ -160,12 +160,6 @@ __PostgresMemberGuard__(ReturnType (T::*func)(FuncArgs... args), T *instance, co
 
 #define PostgresMemberGuard(FUNC, ...) pgduckdb::__PostgresMemberGuard__(&FUNC, this, __func__, ##__VA_ARGS__)
 
-duckdb::unique_ptr<duckdb::QueryResult> DuckDBQueryOrThrow(duckdb::ClientContext &context, const std::string &query);
-
-duckdb::unique_ptr<duckdb::QueryResult> DuckDBQueryOrThrow(duckdb::Connection &connection, const std::string &query);
-
-duckdb::unique_ptr<duckdb::QueryResult> DuckDBQueryOrThrow(const std::string &query);
-
 void AppendEscapedUri(std::ostringstream &oss, const char *str);
 
 } // namespace pgduckdb

@@ -284,7 +284,7 @@ DuckAssignTimezone_Cpp(const char *tz) {
 	// RefreshConnectionState, and GUCs can be changed outside of transaction
 	// blocks (for instance by being reverted due to SET LOCAL or by SIGHUP)
 	auto connection = pgddb::DuckDBManager::GetConnectionUnsafe();
-	pgduckdb::DuckDBQueryOrThrow(*connection, "SET TimeZone =" + duckdb::KeywordHelper::WriteQuoted(tz));
+	pgddb::DuckDBManager::DuckDBQueryOrThrow(*connection, "SET TimeZone =" + duckdb::KeywordHelper::WriteQuoted(tz));
 	elog(DEBUG2, "[PGDuckDB] Set DuckDB option: 'TimeZone'=%s", tz);
 }
 

@@ -207,17 +207,17 @@ DuckDBManager::Initialize() {
 
 	auto &db_manager = duckdb::DatabaseManager::Get(context);
 	default_dbname = db_manager.GetDefaultDatabase(context);
-	pgduckdb::DuckDBQueryOrThrow(context, "SET TimeZone =" + duckdb::KeywordHelper::WriteQuoted(pg_time_zone));
-	pgduckdb::DuckDBQueryOrThrow(context, "SET default_collation =" +
+	DuckDBQueryOrThrow(context, "SET TimeZone =" + duckdb::KeywordHelper::WriteQuoted(pg_time_zone));
+	DuckDBQueryOrThrow(context, "SET default_collation =" +
 	                                          duckdb::KeywordHelper::WriteQuoted(duckdb_default_collation));
-	pgduckdb::DuckDBQueryOrThrow(context, "ATTACH DATABASE 'pgduckdb' (TYPE pgduckdb)");
-	pgduckdb::DuckDBQueryOrThrow(context, "ATTACH DATABASE ':memory:' AS pg_temp;");
+	DuckDBQueryOrThrow(context, "ATTACH DATABASE 'pgduckdb' (TYPE pgduckdb)");
+	DuckDBQueryOrThrow(context, "ATTACH DATABASE ':memory:' AS pg_temp;");
 
 	if (pgduckdb::IsMotherDuckEnabled()) {
 		auto timeout = FindMotherDuckBackgroundCatalogRefreshInactivityTimeout();
 		if (timeout != nullptr) {
 			auto quoted_timeout = duckdb::KeywordHelper::WriteQuoted(timeout);
-			pgduckdb::DuckDBQueryOrThrow(context, "SET motherduck_background_catalog_refresh_inactivity_timeout=" +
+			DuckDBQueryOrThrow(context, "SET motherduck_background_catalog_refresh_inactivity_timeout=" +
 			                                          quoted_timeout);
 		}
 	}
@@ -254,11 +254,11 @@ DuckDBManager::LoadSecrets(duckdb::ClientContext &context) {
 void
 DuckDBManager::DropSecrets(duckdb::ClientContext &context) {
 	auto secrets =
-	    pgduckdb::DuckDBQueryOrThrow(context, "SELECT name FROM duckdb_secrets() WHERE name LIKE 'pgduckdb_secret_%';");
+	    DuckDBQueryOrThrow(context, "SELECT name FROM duckdb_secrets() WHERE name LIKE 'pgduckdb_secret_%';");
 	while (auto chunk = secrets->Fetch()) {
 		for (size_t i = 0, s = chunk->size(); i < s; ++i) {
 			auto drop_secret_cmd = duckdb::StringUtil::Format("DROP SECRET %s;", chunk->GetValue(0, i).ToString());
-			pgduckdb::DuckDBQueryOrThrow(context, drop_secret_cmd);
+			DuckDBQueryOrThrow(context, drop_secret_cmd);
 		}
 	}
 }
@@ -318,12 +318,12 @@ DuckDBManager::RefreshConnectionState(duckdb::ClientContext &context) {
 		 * connection will inherit these same filesystem restrictions.
 		 * This shouldn't be a problem in practice.
 		 */
-		pgduckdb::DuckDBQueryOrThrow(context, "SET disabled_filesystems=" +
+		DuckDBQueryOrThrow(context, "SET disabled_filesystems=" +
 		                                          duckdb::KeywordHelper::WriteQuoted(disabled_filesystems));
 	}
 
 	if (strlen(duckdb_azure_transport_option_type) > 0) {
-		pgduckdb::DuckDBQueryOrThrow(context,
+		DuckDBQueryOrThrow(context,
 		                             "SET azure_transport_option_type=" +
 		                                 duckdb::KeywordHelper::WriteQuoted(duckdb_azure_transport_option_type));
 	}

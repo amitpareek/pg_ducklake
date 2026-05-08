@@ -75,7 +75,7 @@ DECLARE_PG_FUNCTION(install_extension) {
 	std::string extension_name = pgduckdb::pg::GetArgString(fcinfo, 0);
 	std::string repository = pgduckdb::pg::GetArgString(fcinfo, 1);
 
-	pgduckdb::DuckDBQueryOrThrow(pgduckdb::ddb::InstallExtensionQuery(extension_name, repository));
+	pgddb::DuckDBManager::DuckDBQueryOrThrow(pgduckdb::ddb::InstallExtensionQuery(extension_name, repository));
 
 	Datum extension_name_datum = CStringGetTextDatum(extension_name.c_str());
 	Datum repository_datum = CStringGetTextDatum(repository.c_str());
@@ -102,7 +102,7 @@ DECLARE_PG_FUNCTION(install_extension) {
 DECLARE_PG_FUNCTION(duckdb_load_extension) {
 	std::string extension_name = pgduckdb::pg::GetArgString(fcinfo, 0);
 
-	pgduckdb::DuckDBQueryOrThrow(pgduckdb::ddb::LoadExtensionQuery(extension_name));
+	pgddb::DuckDBManager::DuckDBQueryOrThrow(pgduckdb::ddb::LoadExtensionQuery(extension_name));
 
 	PG_RETURN_VOID();
 }
