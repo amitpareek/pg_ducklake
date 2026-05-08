@@ -2,7 +2,7 @@
 #include "pgddb/catalog/pgddb_schema.hpp"
 #include "pgddb/catalog/pgddb_transaction.hpp"
 #include "pgddb/catalog/pgddb_table.hpp"
-#include "pgduckdb/scan/postgres_scan.hpp"
+#include "pgddb/scan/postgres_scan.hpp"
 #include "pgddb/pg/relations.hpp"
 
 #include "duckdb/parser/parsed_data/create_table_info.hpp"

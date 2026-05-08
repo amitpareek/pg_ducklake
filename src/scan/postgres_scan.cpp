@@ -8,8 +8,8 @@
 #include <duckdb/planner/expression/bound_conjunction_expression.hpp>
 #include <duckdb/planner/expression/bound_operator_expression.hpp>
 
-#include "pgduckdb/scan/postgres_scan.hpp"
-#include "pgduckdb/scan/postgres_table_reader.hpp"
+#include "pgddb/scan/postgres_scan.hpp"
+#include "pgddb/scan/postgres_table_reader.hpp"
 #include "pgduckdb/pgduckdb_types.hpp"
 #include "pgduckdb/pgduckdb_utils.hpp"
 #include "pgddb/pg/memory.hpp"
@@ -22,7 +22,11 @@
 #include <numeric> // std::accumulate
 #include <optional>
 
-namespace pgduckdb {
+namespace pgddb {
+
+// Bring pgduckdb's free functions and globals into scope while sibling
+// pieces still live in pgduckdb::. Future iterations shrink this.
+using namespace ::pgduckdb;
 
 //
 // PostgresScanGlobalState
@@ -642,4 +646,4 @@ PostgresScanTableFunction::PostgresScanCardinality(duckdb::ClientContext &, cons
 	return duckdb::make_uniq<duckdb::NodeStatistics>(bind_data.cardinality, bind_data.cardinality);
 }
 
-} // namespace pgduckdb
+} // namespace pgddb

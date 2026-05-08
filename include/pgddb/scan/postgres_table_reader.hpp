@@ -6,7 +6,7 @@
 
 #include "pgduckdb/utility/cpp_only_file.hpp" // Must be last include.
 
-namespace pgduckdb {
+namespace pgddb {
 
 class PostgresTableReader {
 public:
@@ -48,4 +48,4 @@ private:
 	bool cleaned_up;
 };
 
-} // namespace pgduckdb
+} // namespace pgddb

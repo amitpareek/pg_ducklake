@@ -10,7 +10,7 @@
 #include "pgduckdb/pgduckdb_metadata_cache.hpp"
 #include "pgduckdb/pgduckdb_utils.hpp"
 #include "pgduckdb/pgduckdb_metadata_cache.hpp"
-#include "pgduckdb/scan/postgres_scan.hpp"
+#include "pgddb/scan/postgres_scan.hpp"
 #include "pgddb/pg/memory.hpp"
 #include "pgddb/pg/types.hpp"
 
@@ -2037,7 +2037,7 @@ ConvertPostgresToDuckValue(Oid attr_type, Datum value, duckdb::Vector &result, i
 }
 
 void
-InsertTupleIntoChunk(duckdb::DataChunk &output, PostgresScanLocalState &scan_local_state, TupleTableSlot *slot) {
+InsertTupleIntoChunk(duckdb::DataChunk &output, pgddb::PostgresScanLocalState &scan_local_state, TupleTableSlot *slot) {
 
 	auto scan_global_state = scan_local_state.global_state;
 
@@ -2097,7 +2097,7 @@ IsThreadSafeTypeForPostgresToDuckDB(Oid attr_type, duckdb::LogicalTypeId duckdb_
  * Global lock & PG memory context are handled for unsafe types, e.g., JSONB/LIST/VARBIT.
  */
 void
-InsertTuplesIntoChunk(duckdb::DataChunk &output, PostgresScanLocalState &scan_local_state, TupleTableSlot **slots,
+InsertTuplesIntoChunk(duckdb::DataChunk &output, pgddb::PostgresScanLocalState &scan_local_state, TupleTableSlot **slots,
                       int num_slots) {
 	if (num_slots == 0) {
 		return;

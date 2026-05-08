@@ -1,6 +1,6 @@
 #include "pgddb/catalog/pgddb_table.hpp"
 
-#include "pgduckdb/scan/postgres_scan.hpp"
+#include "pgddb/scan/postgres_scan.hpp"
 #include "pgddb/catalog/pgddb_schema.hpp"
 #include "pgduckdb/logger.hpp"
 #include "pgddb/pg/relations.hpp"

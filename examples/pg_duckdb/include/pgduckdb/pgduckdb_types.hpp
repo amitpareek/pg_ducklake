@@ -5,10 +5,12 @@
 
 #include "pgduckdb/utility/cpp_only_file.hpp" // Must be last include.
 
-namespace pgduckdb {
-
+namespace pgddb {
 struct PostgresScanGlobalState;
 struct PostgresScanLocalState;
+} // namespace pgddb
+
+namespace pgduckdb {
 
 // DuckDB has date starting from 1/1/1970 while PG starts from 1/1/2000
 constexpr int32_t PGDUCKDB_DUCK_DATE_OFFSET = 10957;
@@ -37,8 +39,8 @@ int32_t GetPostgresDuckDBTypemod(const duckdb::LogicalType &type);
 duckdb::Value ConvertPostgresParameterToDuckValue(Datum value, Oid postgres_type);
 void ConvertPostgresToDuckValue(Oid attr_type, Datum value, duckdb::Vector &result, uint64_t offset);
 bool ConvertDuckToPostgresValue(TupleTableSlot *slot, duckdb::Value &value, uint64_t col);
-void InsertTupleIntoChunk(duckdb::DataChunk &output, PostgresScanLocalState &scan_local_state, TupleTableSlot *slot);
-void InsertTuplesIntoChunk(duckdb::DataChunk &output, PostgresScanLocalState &scan_local_state, TupleTableSlot **slots,
+void InsertTupleIntoChunk(duckdb::DataChunk &output, ::pgddb::PostgresScanLocalState &scan_local_state, TupleTableSlot *slot);
+void InsertTuplesIntoChunk(duckdb::DataChunk &output, ::pgddb::PostgresScanLocalState &scan_local_state, TupleTableSlot **slots,
                            int num_slots);
 
 } // namespace pgduckdb

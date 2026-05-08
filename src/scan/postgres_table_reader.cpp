@@ -1,4 +1,4 @@
-#include "pgduckdb/scan/postgres_table_reader.hpp"
+#include "pgddb/scan/postgres_table_reader.hpp"
 #include "pgduckdb/pgduckdb_process_lock.hpp"
 #include "pgduckdb/pgduckdb_utils.hpp"
 #include "pgduckdb/pgduckdb_guc.hpp"
@@ -28,7 +28,11 @@ extern "C" {
 
 #include <cmath>
 
-namespace pgduckdb {
+namespace pgddb {
+
+// Bring pgduckdb's free functions and globals into scope while sibling
+// pieces still live in pgduckdb::. Future iterations shrink this.
+using namespace ::pgduckdb;
 
 PostgresTableReader::PostgresTableReader()
     : table_scan_query_desc(nullptr), table_scan_planstate(nullptr), parallel_executor_info(nullptr),
@@ -376,4 +380,4 @@ PostgresTableReader::GetNextWorkerTuple() {
 	return NULL;
 }
 
-} // namespace pgduckdb
+} // namespace pgddb

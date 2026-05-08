@@ -21,7 +21,7 @@
 #include "pgduckdb/pgduckdb_userdata_cache.hpp"
 #include "pgduckdb/pgduckdb_utils.hpp"
 #include "pgduckdb/pgduckdb_xact.hpp"
-#include "pgduckdb/scan/postgres_scan.hpp"
+#include "pgddb/scan/postgres_scan.hpp"
 
 #include "pgduckdb/utility/cpp_wrapper.hpp"
 #include "pgduckdb/utility/signal_guard.hpp"

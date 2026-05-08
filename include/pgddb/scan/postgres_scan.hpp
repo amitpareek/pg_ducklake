@@ -5,11 +5,11 @@
 #include "pgddb/pg/declarations.hpp"
 #include "pgduckdb/utility/allocator.hpp"
 
-#include "pgduckdb/scan/postgres_table_reader.hpp"
+#include "pgddb/scan/postgres_table_reader.hpp"
 
 #include "pgduckdb/utility/cpp_only_file.hpp" // Must be last include.
 
-namespace pgduckdb {
+namespace pgddb {
 
 // Global State
 
@@ -97,4 +97,4 @@ struct PostgresScanTableFunction : public duckdb::TableFunction {
 	static duckdb::InsertionOrderPreservingMap<duckdb::string> ToString(duckdb::TableFunctionToStringInput &input);
 };
 
-} // namespace pgduckdb
+} // namespace pgddb
