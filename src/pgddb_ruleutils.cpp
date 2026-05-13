@@ -47,6 +47,25 @@ extern "C" {
 extern "C" {
 bool outermost_query = true;
 
+/*
+ * Hook globals. Initialized at static-construction time to the in-file impls
+ * below, so vendored ruleutils gets identical behavior to before. The next
+ * slice moves the impls back to the consumer side and switches the defaults
+ * to NULL + InitRuleutilsHooks() at _PG_init.
+ */
+pgddb_function_name_hook_t pgddb_function_name_hook;
+pgddb_is_fake_type_hook_t pgddb_is_fake_type_hook;
+pgddb_var_is_row_hook_t pgddb_var_is_row_hook;
+pgddb_subscript_var_hook_t pgddb_subscript_var_hook;
+pgddb_func_returns_row_hook_t pgddb_func_returns_row_hook;
+pgddb_replace_subquery_with_view_hook_t pgddb_replace_subquery_with_view_hook;
+pgddb_show_type_hook_t pgddb_show_type_hook;
+pgddb_reconstruct_star_step_hook_t pgddb_reconstruct_star_step_hook;
+pgddb_strip_first_subscript_hook_t pgddb_strip_first_subscript_hook;
+pgddb_subscript_has_custom_alias_hook_t pgddb_subscript_has_custom_alias_hook;
+pgddb_write_row_refname_hook_t pgddb_write_row_refname_hook;
+pgddb_db_and_schema_hook_t pgddb_db_and_schema_hook;
+
 char *
 pgduckdb_function_name(Oid function_oid, bool *use_variadic_p) {
 	if (!pgduckdb::IsDuckdbOnlyFunction(function_oid)) {
@@ -1194,7 +1213,7 @@ pgduckdb_get_alter_tabledef(Oid relation_oid, AlterTableStmt *alter_stmt) {
  * Recursively check Const nodes and Var nodes for handling more complex DEFAULT clauses
  */
 bool
-pgduckdb_is_not_default_expr(Node *node, void *context) {
+pgddb_is_not_default_expr(Node *node, void *context) {
 	if (node == NULL) {
 		return false;
 	}
@@ -1210,9 +1229,9 @@ pgduckdb_is_not_default_expr(Node *node, void *context) {
 	}
 
 #if PG_VERSION_NUM >= 160000
-	return expression_tree_walker(node, pgduckdb_is_not_default_expr, context);
+	return expression_tree_walker(node, pgddb_is_not_default_expr, context);
 #else
-	return expression_tree_walker(node, (bool (*)())((void *)pgduckdb_is_not_default_expr), context);
+	return expression_tree_walker(node, (bool (*)())((void *)pgddb_is_not_default_expr), context);
 #endif
 }
 
@@ -1227,7 +1246,7 @@ is_bernoulli_sampling(const char *tsm_name, int num_args) {
 }
 
 void
-pgduckdb_add_tablesample_percent(const char *tsm_name, StringInfo buf, int num_args) {
+pgddb_add_tablesample_percent(const char *tsm_name, StringInfo buf, int num_args) {
 	if (!(is_system_sampling(tsm_name, num_args) || is_bernoulli_sampling(tsm_name, num_args))) {
 		return;
 	}
@@ -1318,3 +1337,29 @@ pg_duckdb_get_oper_expr_suffix(StringInfo buf, void *vctx) {
 	}
 }
 }
+
+/*
+ * Wire the hook globals to point at the in-file impls so behavior is
+ * preserved while the impls still live here. The next slice moves the
+ * impls back to the consumer side and switches this to a NULL default
+ * + consumer-side InitRuleutilsHooks() called from _PG_init.
+ */
+namespace {
+struct PgddbRuleutilsHookInit {
+	PgddbRuleutilsHookInit() {
+		pgddb_function_name_hook = pgduckdb_function_name;
+		pgddb_is_fake_type_hook = pgduckdb_is_fake_type;
+		pgddb_var_is_row_hook = pgduckdb_var_is_duckdb_row;
+		pgddb_subscript_var_hook = pgduckdb_duckdb_subscript_var;
+		pgddb_func_returns_row_hook = pgduckdb_func_returns_duckdb_row;
+		pgddb_replace_subquery_with_view_hook = pgduckdb_replace_subquery_with_view;
+		pgddb_show_type_hook = pgduckdb_show_type;
+		pgddb_reconstruct_star_step_hook = pgduckdb_reconstruct_star_step;
+		pgddb_strip_first_subscript_hook = pgduckdb_strip_first_subscript;
+		pgddb_subscript_has_custom_alias_hook = pgduckdb_subscript_has_custom_alias;
+		pgddb_write_row_refname_hook = pgduckdb_write_row_refname;
+		pgddb_db_and_schema_hook = pgduckdb_db_and_schema;
+	}
+};
+PgddbRuleutilsHookInit g_pgddb_ruleutils_hook_init;
+} // namespace

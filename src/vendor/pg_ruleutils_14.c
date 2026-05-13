@@ -6005,7 +6005,7 @@ get_target_list(List *targetList, deparse_context *context,
 		char	   *colname;
 		char	   *attname;
 
-		if (pgduckdb_reconstruct_star_step(&star_reconstruction_context, l)) {
+		if (pgddb_reconstruct_star_step(&star_reconstruction_context, l)) {
 			continue;
 		}
 
@@ -6066,7 +6066,7 @@ get_target_list(List *targetList, deparse_context *context,
 		 * This makes sure we don't add Postgres its bad default alias to the
 		 * duckdb.row type.
 		 */
-		bool duckdb_skip_as = pgduckdb_var_is_duckdb_row(var);
+		bool duckdb_skip_as = pgddb_var_is_row(var);
 
 		/*
 		 * For r['abc'] expressions we don't want the column name to be r, but
@@ -6075,7 +6075,7 @@ get_target_list(List *targetList, deparse_context *context,
 		 * to the column name are still valid.
 		 */
 		if (!duckdb_skip_as && outermost_targetlist) {
-			Var *subscript_var = pgduckdb_duckdb_subscript_var(tle->expr);
+			Var *subscript_var = pgddb_subscript_var(tle->expr);
 			if (subscript_var) {
 				/*
 				 * This cannot be moved to pgduckdb_ruleutils, because of
@@ -6083,7 +6083,7 @@ get_target_list(List *targetList, deparse_context *context,
 				 */
 				deparse_namespace* dpns = (deparse_namespace *) list_nth(context->namespaces,
 															subscript_var->varlevelsup);
-				duckdb_skip_as = !pgduckdb_subscript_has_custom_alias(dpns->plan, dpns->rtable, subscript_var, colname);
+				duckdb_skip_as = !pgddb_subscript_has_custom_alias(dpns->plan, dpns->rtable, subscript_var, colname);
 			}
 		}
 
@@ -6686,7 +6686,7 @@ get_insert_query_def(Query *query, deparse_context *context,
 		 */
 		if (values_rte || select_rte)
 		{
-			if (!pgduckdb_is_not_default_expr((Node *) tle, NULL))
+			if (!pgddb_is_not_default_expr((Node *) tle, NULL))
 				continue;
 		}
 
@@ -7329,8 +7329,8 @@ get_variable(Var *var, int levelsup, bool istoplevel, deparse_context *context)
 			elog(ERROR, "invalid attnum %d for relation \"%s\"",
 				 attnum, rte->eref->aliasname);
 
-		if (pgduckdb_var_is_duckdb_row(var)) {
-			return pgduckdb_write_row_refname(context->buf, refname, istoplevel);
+		if (pgddb_var_is_row(var)) {
+			return pgddb_write_row_refname(context->buf, refname, istoplevel);
 		}
 
 		attname = colinfo->colnames[attnum - 1];
@@ -8646,7 +8646,7 @@ get_rule_expr(Node *node, deparse_context *context,
 				}
 				else
 				{
-					SubscriptingRef *new_sbsref = pgduckdb_strip_first_subscript(sbsref, context->buf);
+					SubscriptingRef *new_sbsref = pgddb_strip_first_subscript(sbsref, context->buf);
 					/* Just an ordinary container fetch, so print subscripts */
 					printSubscripts(new_sbsref, context);
 				}
@@ -10429,7 +10429,7 @@ get_coercion_expr(Node *arg, deparse_context *context,
 			appendStringInfoChar(buf, ')');
 	}
 
-	if (pgduckdb_is_fake_type(resulttype)) {
+	if (pgddb_is_fake_type(resulttype)) {
 		return;
 	}
 
@@ -10468,7 +10468,7 @@ get_const_expr(Const *constval, deparse_context *context, int showtype)
 	char	   *extval;
 	bool		needlabel = false;
 
-	showtype = pgduckdb_show_type(constval, showtype);
+	showtype = pgddb_show_type(constval, showtype);
 
 	if (constval->constisnull)
 	{
@@ -10990,7 +10990,7 @@ get_from_clause_item(Node *jtnode, Query *query, deparse_context *context)
 				break;
 			case RTE_SUBQUERY:
 				/* Subquery RTE */
-				if (pgduckdb_replace_subquery_with_view(rte->subquery, buf)) {
+				if (pgddb_replace_subquery_with_view(rte->subquery, buf)) {
 					break;
 				}
 				appendStringInfoChar(buf, '(');
@@ -11115,7 +11115,7 @@ get_from_clause_item(Node *jtnode, Query *query, deparse_context *context)
 		/* Print the relation alias, if needed */
 		get_rte_alias(rte, varno, false, context);
 
-		if (pgduckdb_func_returns_duckdb_row(rtfunc1)) {
+		if (pgddb_func_returns_row(rtfunc1)) {
 			/*
 			 * We never want to print column aliases for functions that return
 			 * a duckdb.row. The common pattern is for people to not provide an
@@ -11451,7 +11451,7 @@ get_tablesample_def(TableSampleClause *tablesample, deparse_context *context)
 		const char *tsm_name = generate_function_name(tablesample->tsmhandler, 1,
 											NIL, argtypes,
 											false, NULL, EXPR_KIND_NONE);
-		pgduckdb_add_tablesample_percent(tsm_name, buf, list_length(tablesample->args));
+		pgddb_add_tablesample_percent(tsm_name, buf, list_length(tablesample->args));
 	}
 	appendStringInfoChar(buf, ')');
 
@@ -11789,7 +11789,7 @@ generate_function_name(Oid funcid, int nargs, List *argnames, Oid *argtypes,
 	Oid		   *p_true_typeids;
 	bool		force_qualify = false;
 
-	result = pgduckdb_function_name(funcid, use_variadic_p);
+	result = pgddb_function_name(funcid, use_variadic_p);
 	if (result)
 		return result;
 
