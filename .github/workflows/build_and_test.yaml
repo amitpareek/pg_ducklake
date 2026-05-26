@@ -90,10 +90,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: third_party/duckdb/build/
-          # Hash BOTH consumers' extension configs: each consumer now builds
+          # Hash ALL consumers' extension configs: each consumer now builds
           # libduckdb into its own build/<type>-<consumer-tag>/ subdir, so any
           # change to either set must invalidate the cache.
-          key: duckdb-build-ubuntu-24.04-${{ steps.versions.outputs.duckdb_sha }}-${{ hashFiles('examples/pg_duckdb/third_party/pg_duckdb_extensions.cmake', 'examples/pg_vortex/pg_vortex_extensions.cmake') }}
+          key: duckdb-build-ubuntu-24.04-${{ steps.versions.outputs.duckdb_sha }}-${{ hashFiles('examples/pg_duckdb/third_party/pg_duckdb_extensions.cmake', 'examples/pg_vortex/pg_vortex_extensions.cmake', 'examples/pg_ducklake/pg_ducklake_extensions.cmake') }}
 
       # Each consumer builds its own libduckdb into
       # third_party/duckdb/build/<type>-<consumer-tag>/, so the build order
@@ -108,6 +108,11 @@ jobs:
         run: ERROR_ON_WARNING=1 make examples/pg_duckdb/all -j$(nproc)
       - name: Install pg_duckdb
         run: make examples/pg_duckdb/install
+      # ---- pg_ducklake ----
+      - name: Build pg_ducklake
+        run: make examples/pg_ducklake/all -j$(nproc)
+      - name: Install pg_ducklake
+        run: make examples/pg_ducklake/install
       # ---- tests ----
       - name: pg_vortex installcheck
         id: pgvortex_installcheck
@@ -132,7 +137,7 @@ jobs:
         if: failure() && steps.pgduckdb_installcheck.outcome == 'failure'
         run: cat examples/pg_duckdb/test/regression/log/postmaster.log || true
 
-      - name: Upload regression artifacts on failure
+      - name: Upload pg_duckdb regression artifacts on failure
         if: failure() && steps.pgduckdb_installcheck.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
@@ -142,3 +147,27 @@ jobs:
             examples/pg_duckdb/test/regression/regression.out
             examples/pg_duckdb/test/regression/results/
             examples/pg_duckdb/test/regression/log/
+
+      - name: pg_ducklake installcheck
+        id: pgducklake_installcheck
+        timeout-minutes: 30
+        run: make examples/pg_ducklake/installcheck
+
+      - name: Print pg_ducklake regression.diffs on failure
+        if: failure() && steps.pgducklake_installcheck.outcome == 'failure'
+        run: cat examples/pg_ducklake/test/regression/regression.diffs || true
+
+      - name: Print pg_ducklake postmaster.log on failure
+        if: failure() && steps.pgducklake_installcheck.outcome == 'failure'
+        run: cat examples/pg_ducklake/test/regression/log/postmaster.log || true
+
+      - name: Upload pg_ducklake regression artifacts on failure
+        if: failure() && steps.pgducklake_installcheck.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pg_ducklake-regression-${{ matrix.version }}
+          path: |
+            examples/pg_ducklake/test/regression/regression.diffs
+            examples/pg_ducklake/test/regression/regression.out
+            examples/pg_ducklake/test/regression/results/
+            examples/pg_ducklake/test/regression/log/
