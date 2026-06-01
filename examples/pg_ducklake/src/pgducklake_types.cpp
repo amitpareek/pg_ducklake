@@ -51,9 +51,6 @@ extern "C" {
 namespace pgducklake {
 
 // Captured at install time, called as fallthrough if not ours.
-static pgddb::ConvertPostgresToBaseDuckColumnType_hook_t prev_ConvertPostgresToBaseDuckColumnType_hook = nullptr;
-static pgddb::GetPostgresDuckDBType_hook_t prev_GetPostgresDuckDBType_hook = nullptr;
-static pgddb::ConvertDuckToPostgresValue_hook_t prev_ConvertDuckToPostgresValue_hook = nullptr;
 static pgddb_is_fake_type_hook_t prev_is_fake_type_hook = nullptr;
 static pgddb_show_type_hook_t prev_show_type_hook = nullptr;
 static pgddb_var_is_row_hook_t prev_var_is_row_hook = nullptr;
@@ -102,12 +99,14 @@ static Oid DucklakeVariantOid() {
 }
 
 // --------------------------------------------------------------------------
-// pgddb_types.hpp hooks: PG OID -> DuckDB base type, DuckDB type -> PG OID,
-// DuckDB value -> PG Datum.
+// libpgddb type hooks: PG OID -> DuckDB base type, DuckDB type -> PG OID,
+// DuckDB value -> PG Datum for ducklake.variant / ducklake.duckdb_struct.
+// Each hook handles pg_ducklake's custom types and returns false to decline
+// (the kernel then tries the next hook or its built-in fallback).
 // --------------------------------------------------------------------------
 
-// ducklake.variant is a varlena text on the PG side. Map it to DuckDB's
-// VARIANT logical type so DuckLake stores it as variant in its catalog;
+// ducklake.variant is a varlena text on the PG side. Mapping it to DuckDB's
+// VARIANT logical type makes DuckLake store it as variant in its catalog;
 // IMPORT FOREIGN SCHEMA queries duckdb_columns() data_type to recover the
 // "variant" string (DuckDB's prepared-statement layer returns VARCHAR
 // regardless).
@@ -116,9 +115,7 @@ static bool ConvertPostgresToBaseDuckColumnTypeHook(Oid pg_oid, duckdb::LogicalT
     out = duckdb::LogicalType::VARIANT();
     return true;
   }
-  return prev_ConvertPostgresToBaseDuckColumnType_hook
-             ? prev_ConvertPostgresToBaseDuckColumnType_hook(pg_oid, out)
-             : false;
+  return false;
 }
 
 static bool GetPostgresDuckDBTypeHook(const duckdb::LogicalType &type, Oid &out) {
@@ -127,22 +124,23 @@ static bool GetPostgresDuckDBTypeHook(const duckdb::LogicalType &type, Oid &out)
   case duckdb::LogicalTypeId::UNION:
   case duckdb::LogicalTypeId::MAP: {
     Oid struct_oid = DucklakeDuckdbStructOid();
-    if (!OidIsValid(struct_oid))
-      break;
-    out = struct_oid;
-    return true;
+    if (OidIsValid(struct_oid)) {
+      out = struct_oid;
+      return true;
+    }
+    return false;
   }
   case duckdb::LogicalTypeId::VARIANT: {
     Oid variant_oid = DucklakeVariantOid();
-    if (!OidIsValid(variant_oid))
-      break;
-    out = variant_oid;
-    return true;
+    if (OidIsValid(variant_oid)) {
+      out = variant_oid;
+      return true;
+    }
+    return false;
   }
   default:
-    break;
+    return false;
   }
-  return prev_GetPostgresDuckDBType_hook ? prev_GetPostgresDuckDBType_hook(type, out) : false;
 }
 
 static bool ConvertDuckToPostgresValueHook(Oid pg_oid, duckdb::Value &value, TupleTableSlot *slot, uint64_t col) {
@@ -151,7 +149,7 @@ static bool ConvertDuckToPostgresValueHook(Oid pg_oid, duckdb::Value &value, Tup
     slot->tts_values[col] = pgddb::ConvertToStringDatum(value);
     return true;
   }
-  return prev_ConvertDuckToPostgresValue_hook ? prev_ConvertDuckToPostgresValue_hook(pg_oid, value, slot, col) : false;
+  return false;
 }
 
 // --------------------------------------------------------------------------
@@ -254,14 +252,11 @@ static char *ColumnTypeNameHook(Oid type_oid, int32_t typemod) {
 }
 
 void InitTypeHooks() {
-  prev_ConvertPostgresToBaseDuckColumnType_hook = pgddb::ConvertPostgresToBaseDuckColumnType_hook;
-  pgddb::ConvertPostgresToBaseDuckColumnType_hook = ConvertPostgresToBaseDuckColumnTypeHook;
-
-  prev_GetPostgresDuckDBType_hook = pgddb::GetPostgresDuckDBType_hook;
-  pgddb::GetPostgresDuckDBType_hook = GetPostgresDuckDBTypeHook;
-
-  prev_ConvertDuckToPostgresValue_hook = pgddb::ConvertDuckToPostgresValue_hook;
-  pgddb::ConvertDuckToPostgresValue_hook = ConvertDuckToPostgresValueHook;
+  // Register pg_ducklake's type hooks (DuckDB STRUCT -> ducklake.duckdb_struct,
+  // ducklake.variant <-> DuckDB VARIANT) on top of libpgddb's built-in types.
+  pgddb::Register_ConvertPostgresToBaseDuckColumnType(ConvertPostgresToBaseDuckColumnTypeHook);
+  pgddb::Register_GetPostgresDuckDBType(GetPostgresDuckDBTypeHook);
+  pgddb::Register_ConvertDuckToPostgresValue(ConvertDuckToPostgresValueHook);
 
   prev_is_fake_type_hook = pgddb_is_fake_type_hook;
   pgddb_is_fake_type_hook = IsFakeTypeHook;
