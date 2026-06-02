@@ -24,7 +24,6 @@
 #include "pgducklake/pgducklake_direct_insert.hpp"
 #include "pgducklake/pgducklake_direct_insert_stats.hpp"
 #include "pgducklake/pgducklake_duckdb.hpp"
-#include "pgducklake/pgducklake_duckdb_query.hpp"
 #include "pgducklake/pgducklake_guc.hpp"
 #include "pgducklake/pgducklake_metadata_manager.hpp"
 #include "pgducklake/pgducklake_sync.hpp"

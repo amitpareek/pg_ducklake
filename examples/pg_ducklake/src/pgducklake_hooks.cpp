@@ -32,7 +32,6 @@
 #include "pgducklake/pgducklake_defs.hpp"
 #include "pgducklake/pgducklake_direct_insert.hpp"
 #include "pgducklake/pgducklake_duckdb.hpp"
-#include "pgducklake/pgducklake_duckdb_query.hpp"
 #include "pgducklake/pgducklake_fdw.hpp"
 #include "pgducklake/pgducklake_functions.hpp"
 #include "pgducklake/pgducklake_guc.hpp"
@@ -460,14 +459,13 @@ bool IsCommitUtilityStmt(PlannedStmt *pstmt) {
 }
 
 void ForceDuckDBCommitOnExplicitCommit() {
-  const char *duckdb_errmsg = nullptr;
-  int rc = pgducklake::ExecuteDuckDBQuery("COMMIT", &duckdb_errmsg);
-  if (rc == 0)
-    return;
-
-  // Explicit PG COMMIT should always be mirrored to DuckDB COMMIT here.
-  ereport(ERROR, (errmsg("pg_ducklake commit hook failed to commit DuckDB: %s",
-                         duckdb_errmsg ? duckdb_errmsg : "unknown error")));
+  try {
+    pgducklake::DuckDBQueryOrThrow("COMMIT");
+  } catch (const std::exception &e) {
+    // Explicit PG COMMIT should always be mirrored to DuckDB COMMIT here.
+    ereport(ERROR,
+            (errmsg("pg_ducklake commit hook failed to commit DuckDB: %s", pgducklake::DuckDBErrorMessage(e).c_str())));
+  }
 }
 
 /*

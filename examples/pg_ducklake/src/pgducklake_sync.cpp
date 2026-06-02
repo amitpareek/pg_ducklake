@@ -18,7 +18,7 @@
 #include "pgducklake/pgducklake_sorted_by.hpp"
 #include "pgducklake/pgducklake_table.hpp"
 
-#include "pgducklake/utility/cpp_wrapper.hpp"
+#include "pgddb/utility/cpp_wrapper.hpp"
 
 #include <string>
 

@@ -26,7 +26,7 @@
  */
 
 #include "pgducklake/pgducklake_defs.hpp"
-#include "pgducklake/pgducklake_duckdb_query.hpp"
+#include "pgducklake/pgducklake_duckdb.hpp"
 #include "pgducklake/pgducklake_guc.hpp"
 #include "pgducklake/pgducklake_maintenance.hpp"
 
@@ -168,10 +168,11 @@ void MaintainTableInProcess(const char *schema_name, const char *table_name) {
 
   std::string query = "SELECT * FROM ducklake_flush_inlined_data(" + Q(PGDUCKLAKE_DUCKDB_CATALOG) +
                       ", schema_name=" + Q(schema_name) + ", table_name=" + Q(table_name) + ")";
-  const char *err = nullptr;
-  if (pgducklake::ExecuteDuckDBQuery(query.c_str(), &err) != 0) {
+  try {
+    pgducklake::DuckDBQueryOrThrow(query);
+  } catch (const std::exception &e) {
     elog(WARNING, "ducklake maintenance: flush_inlined_data failed for \"%s\".\"%s\": %s", schema_name, table_name,
-         err ? err : "unknown");
+         pgducklake::DuckDBErrorMessage(e).c_str());
   }
 }
 
@@ -181,9 +182,10 @@ void MaintainCatalogInProcess() {
     return;
 
   std::string query = "SELECT * FROM ducklake_expire_snapshots(" + Q(PGDUCKLAKE_DUCKDB_CATALOG) + ")";
-  const char *err = nullptr;
-  if (pgducklake::ExecuteDuckDBQuery(query.c_str(), &err) != 0) {
-    elog(WARNING, "ducklake maintenance: expire_snapshots failed: %s", err ? err : "unknown");
+  try {
+    pgducklake::DuckDBQueryOrThrow(query);
+  } catch (const std::exception &e) {
+    elog(WARNING, "ducklake maintenance: expire_snapshots failed: %s", pgducklake::DuckDBErrorMessage(e).c_str());
   }
 }
 
@@ -213,10 +215,11 @@ void CompactTable(const char *schema_name, const char *table_name) {
     std::string query = "SELECT * FROM ducklake_rewrite_data_files(" + Q(db) + ", " + Q(table) +
                         ", schema=" + Q(schema) + ", delete_threshold => " +
                         std::to_string(pgducklake::vacuum_delete_threshold) + ")";
-    const char *err = nullptr;
-    if (pgducklake::ExecuteDuckDBQuery(query.c_str(), &err) != 0) {
+    try {
+      pgducklake::DuckDBQueryOrThrow(query);
+    } catch (const std::exception &e) {
       elog(WARNING, "ducklake maintenance: rewrite_data_files failed for \"%s\".\"%s\": %s", schema_name, table_name,
-           err ? err : "unknown");
+           pgducklake::DuckDBErrorMessage(e).c_str());
     }
   }
 
@@ -224,10 +227,11 @@ void CompactTable(const char *schema_name, const char *table_name) {
   {
     std::string query =
         "SELECT * FROM ducklake_merge_adjacent_files(" + Q(db) + ", " + Q(table) + ", schema=" + Q(schema) + ")";
-    const char *err = nullptr;
-    if (pgducklake::ExecuteDuckDBQuery(query.c_str(), &err) != 0) {
+    try {
+      pgducklake::DuckDBQueryOrThrow(query);
+    } catch (const std::exception &e) {
       elog(WARNING, "ducklake maintenance: merge_adjacent_files failed for \"%s\".\"%s\": %s", schema_name, table_name,
-           err ? err : "unknown");
+           pgducklake::DuckDBErrorMessage(e).c_str());
     }
   }
 }
@@ -239,9 +243,10 @@ void CompactCatalog() {
 
   std::string query =
       "SELECT * FROM ducklake_cleanup_old_files(" + Q(PGDUCKLAKE_DUCKDB_CATALOG) + ", cleanup_all => true)";
-  const char *err = nullptr;
-  if (pgducklake::ExecuteDuckDBQuery(query.c_str(), &err) != 0) {
-    elog(WARNING, "ducklake maintenance: cleanup_old_files failed: %s", err ? err : "unknown");
+  try {
+    pgducklake::DuckDBQueryOrThrow(query);
+  } catch (const std::exception &e) {
+    elog(WARNING, "ducklake maintenance: cleanup_old_files failed: %s", pgducklake::DuckDBErrorMessage(e).c_str());
   }
 }
 

@@ -135,7 +135,7 @@ for PG-native UX, text for programmatic/DuckDB-compatible use.
 PG procedure stub registered as `AS 'MODULE_PATHNAME', 'ducklake_only_procedure'`.
 Utility hook intercepts `CALL` statements, extracts Const arguments,
 converts regclass OIDs to named parameters, constructs DuckDB SQL,
-and calls `ExecuteDuckDBQuery()`.
+and calls `DuckDBQueryOrThrow()`.
 
 ## Type Mapping
 

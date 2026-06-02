@@ -15,8 +15,8 @@
 #include <duckdb/parser/keyword_helper.hpp>
 
 #include "pgducklake/pgducklake_defs.hpp"
-#include "pgducklake/pgducklake_duckdb_query.hpp"
-#include "pgducklake/utility/cpp_wrapper.hpp"
+#include "pgducklake/pgducklake_duckdb.hpp"
+#include "pgddb/utility/cpp_wrapper.hpp"
 
 extern "C" {
 #include "postgres.h"
@@ -64,7 +64,11 @@ static constexpr const char *FROZEN_DB = "__pgducklake_frozen__";
 
 static void DetachFrozenDB() {
   auto detach = duckdb::StringUtil::Format("DETACH %s", FROZEN_DB);
-  ExecuteDuckDBQuery(detach.c_str(), nullptr);
+  try {
+    DuckDBQueryOrThrow(detach);
+  } catch (const std::exception &) {
+    // Best-effort cleanup; ignore errors (the DB may not be attached).
+  }
 }
 
 static void FreezeFail(const char *step, const char *error_msg) {
@@ -83,8 +87,6 @@ DECLARE_PG_FUNCTION(ducklake_freeze) {
 
   char *output_path = text_to_cstring(PG_GETARG_TEXT_PP(0));
 
-  const char *error_msg = nullptr;
-
   // If data inlining is enabled, the caller must flush inlined data before
   // freezing (SELECT * FROM ducklake.flush_inlined_data()). The flush must be
   // a separate top-level PG statement so pg_duckdb's catalog cache refreshes
@@ -101,8 +103,11 @@ DECLARE_PG_FUNCTION(ducklake_freeze) {
                                    pgducklake::FROZEN_DB, table, table, empty ? " WHERE false" : "");
   }
 
-  if (pgducklake::ExecuteDuckDBQuery(batch.c_str(), &error_msg) != 0)
-    pgducklake::FreezeFail("copy metadata", error_msg);
+  try {
+    pgducklake::DuckDBQueryOrThrow(batch);
+  } catch (const std::exception &e) {
+    pgducklake::FreezeFail("copy metadata", pgducklake::DuckDBErrorMessage(e).c_str());
+  }
 
   // 3. DETACH
   pgducklake::DetachFrozenDB();

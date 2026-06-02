@@ -11,7 +11,7 @@
 
 #include <duckdb/common/error_data.hpp>
 
-#include "pgducklake/utility/cpp_wrapper.hpp"
+#include "pgddb/utility/cpp_wrapper.hpp"
 
 extern "C" {
 #include "fmgr.h"

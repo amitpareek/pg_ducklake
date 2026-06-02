@@ -30,7 +30,7 @@ each backend process independently initializes its own state.
 | ------------------ | ----------------------------------------------------- |
 | PG extension       | sql/pg_ducklake--\*.sql                               |
 | PG backend process | src/pgducklake.cpp (`_PG_init`)                       |
-| DuckDB instance    | src/pgducklake_duckdb.cpp (`ducklake_load_extension`) |
+| DuckDB instance    | src/pgducklake_duckdb.cpp (`DuckDBManager::OnPostInit`) |
 
 #### 1. PG extension
 
@@ -53,10 +53,10 @@ live as long as the process regardless of DuckDB instance recycling.
 
 Created by `DuckDBManager::Initialize()` on first DuckDB query.
 Destroyed by `DuckDBManager::Reset()` via `recycle_ddb()` or backend
-exit. Hook on create: `ducklake_load_extension(duckdb::DuckDB &db)`.
+exit. Hook on create: `pgducklake::DuckDBManager::OnPostInit(duckdb::ClientContext &)`.
 
 Everything registered on `db.instance` is lost on recycle and
-re-created by `ducklake_load_extension`. Per-transaction
+re-created by `DuckDBManager::OnPostInit`. Per-transaction
 `PgDuckLakeMetadataManager` instances also belong here.
 
 #### 4. Background maintenance worker

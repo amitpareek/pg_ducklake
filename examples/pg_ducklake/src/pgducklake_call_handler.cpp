@@ -13,7 +13,7 @@
 
 #include "pgducklake/pgducklake_call_handler.hpp"
 #include "pgducklake/pgducklake_defs.hpp"
-#include "pgducklake/pgducklake_duckdb_query.hpp"
+#include "pgducklake/pgducklake_duckdb.hpp"
 
 #include <string>
 #include <vector>
@@ -114,15 +114,17 @@ void HandleDuckdbCall(CallStmt *call, const char *query_string) {
 
   elog(DEBUG2, "[PGDuckLake] Executing CALL: %s", query.c_str());
 
-  // ExecuteDuckDBQuery runs in PG planner/executor context (a snapshot is
+  // DuckDBQueryOrThrow runs in PG planner/executor context (a snapshot is
   // already set there). The utility hook fires before any planner pass,
   // though, so push a snapshot for the duration of the call.
   PushActiveSnapshot(GetTransactionSnapshot());
-  const char *error_msg = nullptr;
-  int result = ExecuteDuckDBQuery(query.c_str(), &error_msg);
+  try {
+    DuckDBQueryOrThrow(query);
+  } catch (const std::exception &e) {
+    PopActiveSnapshot();
+    ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR), errmsg("%s", pgducklake::DuckDBErrorMessage(e).c_str())));
+  }
   PopActiveSnapshot();
-  if (result != 0)
-    ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR), errmsg("%s", error_msg ? error_msg : "unknown error")));
 }
 
 } // namespace pgducklake

@@ -19,14 +19,14 @@
  */
 
 #include "pgducklake/pgducklake_defs.hpp"
-#include "pgducklake/pgducklake_duckdb_query.hpp"
+#include "pgducklake/pgducklake_duckdb.hpp"
 
 #include <duckdb/common/error_data.hpp> /* must precede postgres.h (FATAL macro) */
 
 #include "pgducklake/pgducklake_table.hpp"
 
 #include "pgducklake/pgducklake_sorted_by.hpp"
-#include "pgducklake/utility/cpp_wrapper.hpp"
+#include "pgddb/utility/cpp_wrapper.hpp"
 
 #include <string>
 
@@ -206,12 +206,13 @@ DECLARE_PG_FUNCTION(ducklake_set_sort) {
   std::string query = std::string("ALTER TABLE ") + pgddb_relation_name(relid) + " SET SORTED BY (" + spec + ")";
 
   pgducklake::sort_synced_from_pg = true;
-  const char *error_msg = nullptr;
-  int result = pgducklake::ExecuteDuckDBQuery(query.c_str(), &error_msg);
+  try {
+    pgducklake::DuckDBQueryOrThrow(query);
+  } catch (...) {
+    pgducklake::sort_synced_from_pg = false;
+    throw;
+  }
   pgducklake::sort_synced_from_pg = false;
-  if (result != 0)
-    ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
-                    errmsg("failed to set sort order: %s", error_msg ? error_msg : "unknown error")));
 
   /* Sync pg_class: drop old ducklake_sorted index, create new one. */
   SPI_connect();
@@ -233,12 +234,13 @@ DECLARE_PG_FUNCTION(ducklake_reset_sort) {
   std::string query = std::string("ALTER TABLE ") + pgddb_relation_name(relid) + " RESET SORTED BY";
 
   pgducklake::sort_synced_from_pg = true;
-  const char *error_msg = nullptr;
-  int result = pgducklake::ExecuteDuckDBQuery(query.c_str(), &error_msg);
+  try {
+    pgducklake::DuckDBQueryOrThrow(query);
+  } catch (...) {
+    pgducklake::sort_synced_from_pg = false;
+    throw;
+  }
   pgducklake::sort_synced_from_pg = false;
-  if (result != 0)
-    ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
-                    errmsg("failed to reset sort order: %s", error_msg ? error_msg : "unknown error")));
 
   /* Drop any ducklake_sorted index on this table */
   SPI_connect();
@@ -447,12 +449,14 @@ void HandleCreateSortedIndex(PlannedStmt *pstmt, const char *query_string, bool 
   elog(DEBUG1, "ducklake_sorted: %s", query.c_str());
 
   PushActiveSnapshot(GetTransactionSnapshot());
-  const char *error_msg = nullptr;
-  int result = ExecuteDuckDBQuery(query.c_str(), &error_msg);
-  PopActiveSnapshot();
-  if (result != 0)
+  try {
+    DuckDBQueryOrThrow(query);
+  } catch (const std::exception &e) {
+    PopActiveSnapshot();
     ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
-                    errmsg("failed to set sort order: %s", error_msg ? error_msg : "unknown error")));
+                    errmsg("failed to set sort order: %s", DuckDBErrorMessage(e).c_str())));
+  }
+  PopActiveSnapshot();
 }
 
 std::vector<SortedIndexDrop> FindSortedIndexDrops(DropStmt *drop) {
@@ -565,11 +569,13 @@ void HandleDropSortedIndex(const std::vector<SortedIndexDrop> &drops) {
     std::string query = std::string("ALTER TABLE ") + pgddb_relation_name(drop.table_oid) + " RESET SORTED BY";
     elog(DEBUG1, "ducklake_sorted drop: %s", query.c_str());
 
-    const char *error_msg = nullptr;
-    int result = ExecuteDuckDBQuery(query.c_str(), &error_msg);
-    if (result != 0)
+    try {
+      DuckDBQueryOrThrow(query);
+    } catch (const std::exception &e) {
+      PopActiveSnapshot();
       ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
-                      errmsg("failed to reset sort order: %s", error_msg ? error_msg : "unknown error")));
+                      errmsg("failed to reset sort order: %s", DuckDBErrorMessage(e).c_str())));
+    }
   }
   PopActiveSnapshot();
 }

@@ -24,6 +24,10 @@
 #include "duckdb/main/materialized_query_result.hpp"
 #include <duckdb/common/string_util.hpp>
 
+// libpgddb utilities (PostgresScopedStackReset); pulls duckdb headers, so it
+// must precede postgres.h.
+#include "pgddb/pgddb_utils.hpp"
+
 #include "common/ducklake_util.hpp"
 
 // Our vendored type conversion utilities
@@ -51,7 +55,6 @@ extern "C" {
 
 // Include after PostgreSQL headers (since these also include postgres.h)
 #include "pgddb/pgddb_process_lock.hpp"
-#include "pgducklake/utility/cpp_wrapper.hpp"
 #include <cstring>
 
 namespace pgducklake {
@@ -153,7 +156,7 @@ static duckdb::unique_ptr<duckdb::QueryResult> CreateSPIResult(const duckdb::str
   elog(DEBUG1, "Creating SPI result for query: %s", query.c_str());
 
   GlobalProcessLockGuard global_lock;
-  PostgresScopedStackReset scoped_stack_reset;
+  pgddb::PostgresScopedStackReset scoped_stack_reset;
 
   SPI_connect();
   PushActiveSnapshot(GetTransactionSnapshot());
@@ -289,7 +292,7 @@ static duckdb::unique_ptr<duckdb::QueryResult> CreateSPIExecuteInSubtransaction(
   elog(DEBUG1, "CreateSPIExecuteInSubtransaction: %s", query.c_str());
 
   GlobalProcessLockGuard global_lock;
-  PostgresScopedStackReset scoped_stack_reset;
+  pgddb::PostgresScopedStackReset scoped_stack_reset;
 
   SPI_connect();
 
@@ -525,7 +528,7 @@ bool PgDuckLakeMetadataManager::IsInitialized() {
  */
 void PgDuckLakeMetadataManager::EnsureSnapshotTrigger() {
   GlobalProcessLockGuard global_lock;
-  PostgresScopedStackReset scoped_stack_reset;
+  pgddb::PostgresScopedStackReset scoped_stack_reset;
 
   SPI_connect();
   PushActiveSnapshot(GetTransactionSnapshot());

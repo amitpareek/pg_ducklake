@@ -5,12 +5,12 @@
  */
 
 #include "pgducklake/pgducklake_defs.hpp"
-#include "pgducklake/pgducklake_duckdb_query.hpp"
+#include "pgducklake/pgducklake_duckdb.hpp"
 
 #include <duckdb/common/error_data.hpp> /* must precede postgres.h (FATAL macro) */
 
 #include "pgducklake/pgducklake_table.hpp"
-#include "pgducklake/utility/cpp_wrapper.hpp"
+#include "pgddb/utility/cpp_wrapper.hpp"
 
 #include <string>
 
@@ -61,11 +61,7 @@ DECLARE_PG_FUNCTION(ducklake_set_partition) {
   std::string query =
       std::string("ALTER TABLE ") + pgddb_relation_name(relid) + " SET PARTITIONED BY (" + spec + ")";
 
-  const char *error_msg = nullptr;
-  int result = pgducklake::ExecuteDuckDBQuery(query.c_str(), &error_msg);
-  if (result != 0)
-    ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
-                    errmsg("failed to set partition: %s", error_msg ? error_msg : "unknown error")));
+  pgducklake::DuckDBQueryOrThrow(query);
 
   PG_RETURN_VOID();
 }
@@ -79,11 +75,7 @@ DECLARE_PG_FUNCTION(ducklake_reset_partition) {
 
   std::string query = std::string("ALTER TABLE ") + pgddb_relation_name(relid) + " RESET PARTITIONED BY";
 
-  const char *error_msg = nullptr;
-  int result = pgducklake::ExecuteDuckDBQuery(query.c_str(), &error_msg);
-  if (result != 0)
-    ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
-                    errmsg("failed to reset partition: %s", error_msg ? error_msg : "unknown error")));
+  pgducklake::DuckDBQueryOrThrow(query);
 
   PG_RETURN_VOID();
 }

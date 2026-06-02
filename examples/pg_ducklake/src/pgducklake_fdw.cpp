@@ -34,9 +34,8 @@
 #include "pgddb/pgddb_duckdb.hpp"
 #include "pgddb/pgddb_types.hpp"
 #include "pgducklake/pgducklake_duckdb.hpp"
-#include "pgducklake/pgducklake_duckdb_query.hpp"
 #include "pgducklake/pgducklake_fdw.hpp"
-#include "pgducklake/utility/cpp_wrapper.hpp"
+#include "pgddb/utility/cpp_wrapper.hpp"
 
 extern "C" {
 #include "postgres.h"
@@ -240,10 +239,11 @@ static void AttachDucklakeDatabase(ForeignServer *server) {
 
   elog(DEBUG1, "ducklake_fdw: %s", query.c_str());
 
-  const char *errmsg;
-  int ret = pgducklake::ExecuteDuckDBQuery(query.c_str(), &errmsg);
-  if (ret != 0)
-    elog(ERROR, "ducklake_fdw: ATTACH failed: %s", errmsg);
+  try {
+    pgducklake::DuckDBQueryOrThrow(query);
+  } catch (const std::exception &e) {
+    elog(ERROR, "ducklake_fdw: ATTACH failed: %s", pgducklake::DuckDBErrorMessage(e).c_str());
+  }
 }
 
 /* ----------------------------------------------------------------
@@ -361,15 +361,14 @@ void pgducklake::RegisterForeignTablesInQuery(Query *query) {
  * ---------------------------------------------------------------- */
 
 static List *InferForeignTableColumns(CreateForeignTableStmt *stmt) {
-  /* Ensure DuckDB is initialized (triggers pg_duckdb startup via SPI) */
+  /* Ensure DuckDB is initialized */
   if (!pgducklake::DuckDBManager::IsInitialized()) {
-    const char *errmsg;
-    pgducklake::ExecuteDuckDBQuery("SELECT 1", &errmsg);
+    try {
+      pgducklake::DuckDBQueryOrThrow("SELECT 1");
+    } catch (const std::exception &) {
+      // Best-effort init; a real failure surfaces on the ATTACH below.
+    }
   }
-
-  duckdb::DuckDB *db = ducklake_get_duckdb_database();
-  if (!db)
-    elog(ERROR, "ducklake_fdw: DuckDB not initialized");
 
   /* Resolve server options */
   const char *server_name = stmt->servername;
@@ -383,12 +382,12 @@ static List *InferForeignTableColumns(CreateForeignTableStmt *stmt) {
   if (!table_name)
     table_name = stmt->base.relation->relname;
 
-  duckdb::Connection conn(*db);
+  auto conn = pgducklake::DuckDBManager::Get().GetConnection();
 
   duckdb::string db_alias = GetDatabaseAlias(server);
   duckdb::string attach_query = BuildAttachQuery(server, db_alias.c_str(), true);
 
-  auto attach_result = conn.Query(attach_query);
+  auto attach_result = conn->Query(attach_query);
   if (attach_result->HasError()) {
     elog(ERROR, "ducklake_fdw: column inference ATTACH failed: %s", attach_result->GetError().c_str());
   }
@@ -398,7 +397,7 @@ static List *InferForeignTableColumns(CreateForeignTableStmt *stmt) {
                                  duckdb::KeywordHelper::WriteOptionallyQuoted(schema_name).c_str(),
                                  duckdb::KeywordHelper::WriteOptionallyQuoted(table_name).c_str());
 
-  auto prepared = conn.Prepare(select_query);
+  auto prepared = conn->Prepare(select_query);
   if (prepared->HasError()) {
     elog(ERROR, "ducklake_fdw: cannot read table \"%s\".\"%s\": %s", schema_name, table_name,
          prepared->error.Message().c_str());
@@ -427,23 +426,22 @@ static List *InferForeignTableColumns(CreateForeignTableStmt *stmt) {
 static List *DucklakeImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid) {
   /* Ensure DuckDB is initialized */
   if (!pgducklake::DuckDBManager::IsInitialized()) {
-    const char *errmsg;
-    pgducklake::ExecuteDuckDBQuery("SELECT 1", &errmsg);
+    try {
+      pgducklake::DuckDBQueryOrThrow("SELECT 1");
+    } catch (const std::exception &) {
+      // Best-effort init; a real failure surfaces on the ATTACH below.
+    }
   }
-
-  duckdb::DuckDB *db = ducklake_get_duckdb_database();
-  if (!db)
-    elog(ERROR, "ducklake_fdw: DuckDB not initialized");
 
   ForeignServer *server = GetForeignServer(serverOid);
 
   /* ATTACH the remote catalog using the runtime alias (IF NOT EXISTS
    * handles the case where it is already ATTACHed). */
-  duckdb::Connection conn(*db);
+  auto conn = pgducklake::DuckDBManager::Get().GetConnection();
   duckdb::string db_alias = GetDatabaseAlias(server);
   duckdb::string attach_query = BuildAttachQuery(server, db_alias.c_str(), true);
 
-  auto attach_result = conn.Query(attach_query);
+  auto attach_result = conn->Query(attach_query);
   if (attach_result->HasError())
     elog(ERROR, "ducklake_fdw: IMPORT FOREIGN SCHEMA ATTACH failed: %s", attach_result->GetError().c_str());
 
@@ -458,7 +456,7 @@ static List *DucklakeImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serv
         "ORDER BY table_name",
         db_alias.c_str(), duckdb::KeywordHelper::WriteOptionallyQuoted(stmt->remote_schema).c_str());
 
-    auto list_result = conn.Query(list_query);
+    auto list_result = conn->Query(list_query);
     if (list_result->HasError())
       elog(ERROR, "ducklake_fdw: cannot list tables in schema \"%s\": %s", stmt->remote_schema,
            list_result->GetError().c_str());
@@ -504,7 +502,7 @@ static List *DucklakeImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serv
                                      duckdb::KeywordHelper::WriteOptionallyQuoted(stmt->remote_schema).c_str(),
                                      duckdb::KeywordHelper::WriteOptionallyQuoted(tname).c_str());
 
-      auto prepared = conn.Prepare(select_query);
+      auto prepared = conn->Prepare(select_query);
       if (prepared->HasError())
         elog(ERROR, "ducklake_fdw: cannot read table \"%s\".\"%s\": %s", stmt->remote_schema, tname.c_str(),
              prepared->error.Message().c_str());
