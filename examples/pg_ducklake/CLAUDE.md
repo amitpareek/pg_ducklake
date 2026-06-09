@@ -131,7 +131,7 @@ See `coding-rules` skill for the full docs tree and style guide.
 ## Gotchas
 
 - **FATAL macro conflict**: PostgreSQL's `elog.h` defines `FATAL`, which clobbers DuckDB's `ExceptionType::FATAL`. Include order is critical: DuckDB/DuckLake headers must parse *before* `postgres.h`. See `coding-rules` skill for the full include-order rules.
-- **Subtree / dependency structure**: `third_party/ducklake` is a git subtree (source committed directly). pg_ducklake is a libpgddb consumer -- the pg_duckdb-derived infrastructure (planner offload, CustomScan, PG-side wrappers) and the DuckDB headers/submodule come from libpgddb via the `PGDDB_*` make variables, not from a local `third_party/pg_duckdb`. CI auto-syncs the `third_party/ducklake` subtree to its upstream repo (see `.github/workflows/sync-subtrees.yaml`).
+- **ducklake dependency / patch structure**: `third_party/ducklake` is a git **submodule** pinned to a community `duckdb/ducklake` commit. Our divergence from community is **not** committed into the tree -- it lives as an ordered series of patch files `third_party/ducklake-NNN-<desc>.patch` that the `Makefile` applies onto the pristine submodule checkout at build time (apply-once, stamp-guarded via `DUCKLAKE_STAMP`; the submodule working tree is intentionally left dirty/patched, the gitlink stays pinned). To see exactly what we changed vs. community, read those patch files. pg_ducklake is a libpgddb consumer -- the pg_duckdb-derived infrastructure (planner offload, CustomScan, PG-side wrappers) and the DuckDB headers/submodule come from libpgddb via the `PGDDB_*` make variables, not from a local `third_party/pg_duckdb`.
 
 ## Miscellaneous
 

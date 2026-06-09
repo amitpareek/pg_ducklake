@@ -358,20 +358,17 @@ Duckdb_EndCustomScan_Cpp(CustomScanState *node) {
 	DuckdbScanState *duckdb_scan_state = (DuckdbScanState *)node;
 	CleanupDuckdbScanState(duckdb_scan_state);
 	/*
-	 * BUG: In rare error casess it's possible that we call this when we are
-	 * currently accepting interupts, in those cases we should not resume them
-	 * yet again otherwise QueryCancelHoldoffCount becomes negative. We should
-	 * fix this, but it's not easy to reproduce this issue. So for now we at
-	 * least make sure that users without assert builds won't hit it in
-	 * production. So check that we are allowed to decrement it.
+	 * In rare error cases EndCustomScan can run after cancel interrupts were
+	 * already resumed (e.g. an error unwound the scan, or a re-entrant DuckDB ->
+	 * PostgresTableReader read temporarily resumed/re-held them), leaving
+	 * QueryCancelHoldoffCount at 0. Resuming again would underflow the counter
+	 * -- harmless in production but a hard Assert(QueryCancelHoldoffCount > 0)
+	 * abort on cassert builds. Only resume when there is actually a hold to
+	 * release; this guard applies in assert builds too.
 	 */
-#ifdef USE_ASSERT_CHECKING
-	RESUME_CANCEL_INTERRUPTS();
-#else
 	if (QueryCancelHoldoffCount > 0) {
 		RESUME_CANCEL_INTERRUPTS();
 	}
-#endif
 }
 
 void

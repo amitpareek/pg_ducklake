@@ -139,6 +139,13 @@ CreateSPIResult(const duckdb::string &query) {
 	bool had_error = false;
 	int ret = -1;
 
+	/* Suppress NOTICE-level chatter from internal metadata SQL run via SPI. DuckLake emits
+	 * CREATE TABLE IF NOT EXISTS for per-table inlined-delete tables; DuckDB silently ignores
+	 * re-creates, but real PostgreSQL raises a NOTICE that would otherwise leak to the client.
+	 * Scoped via a GUC nest level and restored by AtEOXact_GUC below (and on transaction abort). */
+	int save_nestlevel = NewGUCNestLevel();
+	::SetConfigOption("client_min_messages", "warning", PGC_USERSET, PGC_S_SESSION);
+
 	PG_TRY();
 	{
 		ret = SPI_execute(query.c_str(), false, 0);
@@ -153,6 +160,8 @@ CreateSPIResult(const duckdb::string &query) {
 		had_error = true;
 	}
 	PG_END_TRY();
+
+	AtEOXact_GUC(false, save_nestlevel);
 
 	if (had_error) {
 		PopActiveSnapshot();
@@ -248,7 +257,7 @@ CreateSPIResult(const duckdb::string &query) {
  * AttachedDatabase is not yet reachable via the db_manager.
  */
 static void
-SubstituteCatalogPlaceholders(duckdb::string &query) {
+SubstitutePgCatalogPlaceholders(duckdb::string &query) {
 	query = duckdb::StringUtil::Replace(query, "{METADATA_CATALOG}", "\"" PGDUCKLAKE_PG_SCHEMA "\"");
 	query =
 	    duckdb::StringUtil::Replace(query, "{METADATA_CATALOG_NAME_IDENTIFIER}", "\"" PGDUCKLAKE_DUCKDB_CATALOG "\"");
@@ -299,6 +308,10 @@ CreateSPIExecuteInSubtransaction(const duckdb::string &query) {
 	 * instead of being retried. The regression suite is single-writer so
 	 * doesn't exercise this path.
 	 */
+	/* Suppress NOTICE-level chatter from internal metadata DDL run via SPI (see CreateSPIResult). */
+	int save_nestlevel = NewGUCNestLevel();
+	::SetConfigOption("client_min_messages", "warning", PGC_USERSET, PGC_S_SESSION);
+
 	PG_TRY();
 	{
 		ret = SPI_execute(query.c_str(), false, 0);
@@ -313,6 +326,8 @@ CreateSPIExecuteInSubtransaction(const duckdb::string &query) {
 		had_error = true;
 	}
 	PG_END_TRY();
+
+	AtEOXact_GUC(false, save_nestlevel);
 
 	if (!had_error && ret < 0) {
 		error_message = duckdb::string("SPI execute failed: ") + SPI_result_code_string(ret);
@@ -362,7 +377,7 @@ SubstitutePathPlaceholders(duckdb::string &query, duckdb::DuckLakeTransaction &t
 duckdb::unique_ptr<duckdb::QueryResult>
 PgDuckLakeMetadataManager::Query(duckdb::string query) {
 	SubstitutePathPlaceholders(query, transaction);
-	SubstituteCatalogPlaceholders(query);
+	SubstitutePgCatalogPlaceholders(query);
 	return CreateSPIResult(query);
 }
 
@@ -402,7 +417,7 @@ ORDER BY row_id;)",
 	                               projection, PGDUCKLAKE_PG_SCHEMA, duckdb::SQLIdentifier(inlined_table_name),
 	                               (unsigned long long)snapshot.snapshot_id, (unsigned long long)snapshot.snapshot_id);
 	elog(DEBUG1, "ReadInlinedData via DuckDB: %s", query.c_str());
-	return transaction.Query(query);
+	return transaction.ExecuteRaw(query);
 }
 
 /*
@@ -425,7 +440,7 @@ ORDER BY row_id;)",
 	                                        projection, PGDUCKLAKE_PG_SCHEMA, duckdb::SQLIdentifier(inlined_table_name),
 	                                        (unsigned long long)snapshot.snapshot_id);
 	elog(DEBUG1, "ReadAllInlinedDataForFlush via DuckDB: %s", query.c_str());
-	return transaction.Query(query);
+	return transaction.ExecuteRaw(query);
 }
 
 duckdb::unique_ptr<duckdb::QueryResult>
@@ -437,7 +452,7 @@ PgDuckLakeMetadataManager::Query(duckdb::DuckLakeSnapshot snapshot, duckdb::stri
 duckdb::unique_ptr<duckdb::QueryResult>
 PgDuckLakeMetadataManager::Execute(duckdb::string query) {
 	SubstitutePathPlaceholders(query, transaction);
-	SubstituteCatalogPlaceholders(query);
+	SubstitutePgCatalogPlaceholders(query);
 	return CreateSPIResult(query);
 }
 
@@ -450,7 +465,7 @@ PgDuckLakeMetadataManager::Execute(duckdb::DuckLakeSnapshot snapshot, duckdb::st
 duckdb::unique_ptr<duckdb::QueryResult>
 PgDuckLakeMetadataManager::ExecuteCommit(duckdb::DuckLakeSnapshot snapshot, duckdb::string query) {
 	DuckLakeMetadataManager::FillSnapshotArgs(query, snapshot);
-	SubstituteCatalogPlaceholders(query);
+	SubstitutePgCatalogPlaceholders(query);
 	/* Skip the snapshot sync trigger during commit.  The trigger exists
 	 * for external DuckDB clients that write directly to the ducklake
 	 * metadata tables; pg_ducklake's own commits have nothing to
@@ -549,11 +564,29 @@ PgDuckLakeMetadataManager::EnsureSnapshotTrigger() {
 }
 
 bool
-PgDuckLakeMetadataManager::IsInitialized(duckdb::DuckLakeOptions & /*options*/) {
+PgDuckLakeMetadataManager::MetadataExists() {
+	// Base MetadataExists probes "SELECT NULL FROM {METADATA_CATALOG}.ducklake_metadata LIMIT 1", which
+	// aborts the surrounding PG transaction when the table is absent. Scan pg_class for any ducklake_*
+	// table instead, and ensure the snapshot sync trigger once an existing DuckLake is detected.
 	bool initialized = IsInitialized();
 	if (initialized)
 		EnsureSnapshotTrigger();
 	return initialized;
+}
+
+duckdb::unique_ptr<duckdb::QueryResult>
+PgDuckLakeMetadataManager::AttachMetadata(const duckdb::string & /*attach_query*/) {
+	// The in-process SPI backend keeps its metadata in PostgreSQL (reached via SPI), so there is no
+	// DuckDB metadata database to ATTACH and no duckdb_secrets to load (the base AttachMetadata does
+	// both on the DuckDB connection). Return an empty success result so Initialize() proceeds to the
+	// MetadataExists() existence check.
+	duckdb::vector<duckdb::string> names;
+	duckdb::StatementProperties properties;
+	duckdb::ClientProperties client_properties;
+	auto &allocator = duckdb::Allocator::DefaultAllocator();
+	auto empty_collection = duckdb::make_uniq<duckdb::ColumnDataCollection>(allocator);
+	return duckdb::make_uniq<duckdb::MaterializedQueryResult>(duckdb::StatementType::SELECT_STATEMENT, properties,
+	                                                          names, std::move(empty_collection), client_properties);
 }
 
 void
@@ -586,6 +619,14 @@ PgDuckLakeMetadataManager::GetInlinedTableQueries(duckdb::DuckLakeSnapshot commi
 	}
 
 	return table_name;
+}
+
+duckdb::string
+PgDuckLakeMetadataManager::GenerateFileColumnStatsCTEBody(const duckdb::CTERequirement &req,
+                                                          duckdb::TableIndex table_id) {
+	// Run the plain-SQL form directly under SPI; PostgresMetadataManager wraps this in
+	// postgres_query() for the DuckDB postgres_scanner backend, which is not a real PG function.
+	return DuckLakeMetadataManager::GenerateFileColumnStatsCTEBody(req, table_id);
 }
 
 // Helper functions for direct insert optimization

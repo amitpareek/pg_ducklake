@@ -1,0 +1,46 @@
+diff --git a/src/storage/ducklake_schema_entry.cpp b/src/storage/ducklake_schema_entry.cpp
+index 6b18e55..49a9fc9 100644
+--- a/src/storage/ducklake_schema_entry.cpp
++++ b/src/storage/ducklake_schema_entry.cpp
+@@ -95,7 +95,25 @@ optional_ptr<CatalogEntry> DuckLakeSchemaEntry::CreateTable(CatalogTransaction t
+ 	auto &duck_catalog = catalog.Cast<DuckLakeCatalog>();
+ 	auto &base_info = info.Base();
+ 	auto table_uuid = duck_transaction.GenerateUUID();
+-	auto table_data_path = DataPath() + duck_catalog.GeneratePathFromName(table_uuid, base_info.table);
++
++	// Check for custom path from PostgreSQL GUC via DuckDB extension option
++	string base_path;
++	auto &context = transaction.GetContext();
++	Value table_path_value;
++
++	if (context.TryGetCurrentSetting("ducklake_default_table_path", table_path_value) && !table_path_value.IsNull() &&
++	    !table_path_value.ToString().empty()) {
++		base_path = table_path_value.ToString();
++		// Ensure trailing slash for proper path concatenation
++		if (!StringUtil::EndsWith(base_path, duck_catalog.Separator())) {
++			base_path += duck_catalog.Separator();
++		}
++		base_path += duck_catalog.GeneratePathFromName(schema_uuid, name);
++	} else {
++		base_path = DataPath();
++	}
++
++	auto table_data_path = base_path + duck_catalog.GeneratePathFromName(table_uuid, base_info.table);
+ 	return CreateTableExtended(transaction, info, std::move(table_uuid), std::move(table_data_path));
+ }
+ 
+diff --git a/src/ducklake_extension.cpp b/src/ducklake_extension.cpp
+index ffe9826..2ff2973 100644
+--- a/src/ducklake_extension.cpp
++++ b/src/ducklake_extension.cpp
+@@ -31,6 +31,10 @@ static void LoadInternal(ExtensionLoader &loader) {
+ 	                          Value::UBIGINT(100), nullptr, SetScope::GLOBAL);
+ 	config.AddExtensionOption("ducklake_retry_backoff", "Backoff factor for exponentially increasing retry wait time",
+ 	                          LogicalType::DOUBLE, Value::DOUBLE(1.5), nullptr, SetScope::GLOBAL);
++	config.AddExtensionOption(
++	    "ducklake_default_table_path",
++	    "Default directory path for DuckLake tables. If set, tables will be created under this path",
++	    LogicalType::VARCHAR, Value(), nullptr, SetScope::SESSION);
+ 	config.AddExtensionOption("ducklake_default_data_inlining_row_limit",
+ 	                          "Default row limit for data inlining (0 disables inlining)", LogicalType::UBIGINT,
+ 	                          Value::UBIGINT(10), nullptr, SetScope::GLOBAL);

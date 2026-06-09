@@ -133,10 +133,10 @@ WHERE c.relname = 'sort_alter_idx';
 ALTER TABLE sort_alter DROP COLUMN extra;
 SELECT * FROM ducklake.get_sort('sort_alter'::regclass);
 
--- 19. DROP COLUMN on sort key column cascade-drops the pg_class index.
--- NOTE: DuckDB sort metadata is not reset because ALTER TABLE DROP COLUMN
--- cascade does not go through the utility hook. DuckDB keeps stale sort
--- metadata until the next compaction or explicit reset_sort.
+-- 19. DROP COLUMN on a sort-key column is rejected by DuckLake (v1.5-variegata
+-- added this guard): the column participates in the table's sort order, so the
+-- ALTER errors out and the pg_class index / sort metadata are left intact.
+-- Reset or change the sort order first to drop such a column.
 ALTER TABLE sort_alter DROP COLUMN val;
 
 SELECT c.relname FROM pg_class c WHERE c.relname = 'sort_alter_idx';

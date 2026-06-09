@@ -162,19 +162,22 @@ git submodule update --init --depth=1 third_party/pg_duckdb/third_party/duckdb
 **Time**: 5-10 min on first run (duckdb is large even with shallow
 clone).
 
-### ducklake (subtree)
+### ducklake (submodule + patches)
 
-`third_party/ducklake` is a git subtree -- its source is committed
-directly in the repo. No initialization needed. To pull upstream
-changes:
+`third_party/ducklake` is a git **submodule** pinned to a community
+`duckdb/ducklake` commit. Our divergence from community lives as an ordered
+series of patch files `third_party/ducklake-NNN-<desc>.patch`, applied onto the
+pristine checkout at build time (apply-once, stamp-guarded -- see the
+`DUCKLAKE_STAMP` rule in `Makefile`). The build inits the submodule
+non-recursively (its inner `duckdb` / `extension-ci-tools` submodules are only
+for ducklake's own CI and are not needed) and applies the patches in numeric
+order; `make clean` drops the stamp so the next build re-applies from a clean
+reset. The submodule working tree is therefore intentionally left dirty
+(patched); the gitlink stays at the pinned community commit.
 
-```bash
-git subtree pull --prefix=third_party/ducklake \
-    https://github.com/relytcloud/ducklake.git main --squash
-```
-
-Changes pushed to `main` that touch `third_party/ducklake/` are
-automatically synced to `relytcloud/ducklake:pg_ducklake` by CI.
+To inspect our customization, read the `ducklake-NNN-*.patch` files. To bump the
+community base: repoint the submodule gitlink, regenerate/rebase the patches
+against the new commit, and re-verify (`make ... && make check-regression`).
 
 ### Submodule worktrees (automated via hooks)
 
