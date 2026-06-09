@@ -6,6 +6,6 @@ duckdb_extension_load(httpfs
 )
 duckdb_extension_load(vortex
     GIT_URL https://github.com/vortex-data/duckdb-vortex
-    GIT_TAG b5fc172130020adcb28b4fe78665cf4ed0069ad0
+    GIT_TAG cfa01b943c57c69058b8e92fd0a85a8e65b23ead
     SUBMODULES "vortex"
 )
