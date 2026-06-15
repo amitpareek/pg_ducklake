@@ -4,6 +4,7 @@
 
 #include "pgducklake/constants.hpp"
 #include "pgducklake/copy_from.hpp"
+#include "pgducklake/create_options.hpp"
 #include "pgducklake/direct_insert.hpp"
 #include "pgducklake/duckdb_manager.hpp"
 #include "pgducklake/ducklake_fdw.hpp"
@@ -608,7 +609,54 @@ DucklakeUtilityHook(PlannedStmt *pstmt, const char *query_string, bool read_only
 
 	bool dropping_extension = IsDropDucklakeExtensionStmt(pstmt);
 
-	prev_process_utility_hook(pstmt, query_string, read_only_tree, context, params, query_env, dest, qc);
+	/* CREATE TABLE ... USING ducklake WITH (ducklake.*) -- strip the
+	 * ducklake.* DefElems before standard_ProcessUtility validates the
+	 * remaining options. The create-table event trigger drains the stash. */
+	bool stripped_ducklake_options = false;
+	if (IsA(parsetree, CreateStmt) || IsA(parsetree, CreateTableAsStmt)) {
+		List **options_ref = NULL;
+		const char *access_method = NULL;
+		if (IsA(parsetree, CreateStmt)) {
+			CreateStmt *stmt = castNode(CreateStmt, parsetree);
+			access_method = stmt->accessMethod;
+			options_ref = &stmt->options;
+		} else {
+			CreateTableAsStmt *cstmt = castNode(CreateTableAsStmt, parsetree);
+			if (cstmt->into) {
+				access_method = cstmt->into->accessMethod;
+				options_ref = &cstmt->into->options;
+			}
+		}
+
+		if (access_method && strcmp(access_method, "ducklake") == 0 && options_ref && *options_ref != NIL) {
+			/* If the parsetree is shared (read_only_tree), copy pstmt before we
+			 * rewrite the options list so we don't poison a cached plan. */
+			if (read_only_tree) {
+				/* Use copyObjectImpl directly: the copyObject macro uses typeof
+				 * which expands poorly under our C++ build flags. */
+				pstmt = (PlannedStmt *)copyObjectImpl(pstmt);
+				parsetree = pstmt->utilityStmt;
+				if (IsA(parsetree, CreateStmt))
+					options_ref = &castNode(CreateStmt, parsetree)->options;
+				else
+					options_ref = &castNode(CreateTableAsStmt, parsetree)->into->options;
+				read_only_tree = false;
+			}
+			stripped_ducklake_options = pgducklake::StripDucklakeCreateOptions(options_ref);
+		}
+	}
+
+	PG_TRY();
+	{
+		prev_process_utility_hook(pstmt, query_string, read_only_tree, context, params, query_env, dest, qc);
+	}
+	PG_CATCH();
+	{
+		if (stripped_ducklake_options)
+			pgducklake::ClearPendingCreateOptions();
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 
 	pgducklake::HandleDropSortedIndex(sorted_drops);
 

@@ -9,6 +9,7 @@
 
 #include "pgducklake/catalog_sync.hpp"
 #include "pgducklake/constants.hpp"
+#include "pgducklake/create_options.hpp"
 #include "pgducklake/duckdb_manager.hpp"
 #include "pgducklake/ducklake_types.hpp"
 #include "pgducklake/guc.hpp"
@@ -528,10 +529,21 @@ DECLARE_PG_FUNCTION(ducklake_create_table_trigger) {
 		                                                        "access method")));
 	}
 
+	// Drain the WITH (ducklake.*) scratchpad set by the utility hook. Empty
+	// (no WITH clause) makes the Apply/Restore calls below no-ops. The override
+	// is applied after RefreshConnectionState (which syncs the session GUC on
+	// GetConnection) so the WITH value takes precedence for this CREATE.
+	pgducklake::PendingCreateOptions pending = pgducklake::TakePendingCreateOptions();
+	pgducklake::ApplyTablePathBeforeCreate(pending);
+
 	std::string create_table_ddl(pgducklake::Ruleutils().get_tabledef(relid));
 	elog(DEBUG1, "Creating DuckLake table: %s", create_table_ddl.c_str());
 
 	pgducklake::DuckDBQueryOrThrow(create_table_ddl);
+
+	// The table now records its data path; restore the session default before
+	// the CTAS INSERT so the override does not leak to later statements.
+	pgducklake::RestoreTablePathAfterCreate(pending);
 
 	if (IsA(parsetree, CreateTableAsStmt) && !pgducklake::ctas_skip_data) {
 		auto ctas_stmt = castNode(CreateTableAsStmt, parsetree);
