@@ -1,10 +1,9 @@
 /*
  * sorted_by.cpp -- ducklake_sorted index AM, procedures, and sync.
  *
- * Ducklake sorted_by is exposed to Postgres as an index AM.
- * The index AM stores no data and is never used by the planner. it exists
- * only as a pg_class marker that the utility hook translates into
- * ALTER TABLE ... SET SORTED BY in DuckDB.
+ * The index AM stores no data and is never used by the planner; it exists only
+ * as a pg_class marker the utility hook translates into ALTER TABLE ... SET
+ * SORTED BY in DuckDB.
  */
 
 #include "pgducklake/constants.hpp"
@@ -38,15 +37,12 @@ extern "C" {
 #include "utils/builtins.h"
 #include "utils/guc.h"
 #include "utils/lsyscache.h"
+#include "utils/rel.h"
 #include "utils/selfuncs.h"
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 
 #include "pgddb/pgddb_ruleutils.h"
-
-/* ================================================================
- * Index AM routines
- * ================================================================ */
 
 PG_FUNCTION_INFO_V1(ducklake_sorted_am_handler);
 
@@ -168,10 +164,6 @@ ducklake_sorted_am_handler(PG_FUNCTION_ARGS) {
 
 	PG_RETURN_POINTER(amroutine);
 }
-
-/* ================================================================
- * ducklake.set_sort / ducklake.reset_sort procedures
- * ================================================================ */
 
 DECLARE_PG_FUNCTION(ducklake_set_sort) {
 	if (PG_ARGISNULL(0))
@@ -573,9 +565,7 @@ HandleDropSortedIndex(const std::vector<SortedIndexDrop> &drops) {
 /* Caller must have an active SPI connection with syncing_from_metadata = true. */
 void
 SyncSortKeys(const char *sid) {
-	/* Skip sort-key sync when sort was set from PostgreSQL (set_sort/
-	 * CREATE INDEX already handled the pg_class index; re-running here
-	 * would deadlock). */
+	/* When sort was set from PG, the pg_class index is already handled; re-running here would deadlock. */
 	if (sort_synced_from_pg)
 		return;
 

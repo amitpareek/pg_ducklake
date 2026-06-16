@@ -1,0 +1,39 @@
+diff --git a/src/functions/ducklake_flush_inlined_data.cpp b/src/functions/ducklake_flush_inlined_data.cpp
+index ba4ecec1..8cecb350 100644
+--- a/src/functions/ducklake_flush_inlined_data.cpp
++++ b/src/functions/ducklake_flush_inlined_data.cpp
+@@ -753,7 +753,7 @@ static unique_ptr<LogicalOperator> FlushInlinedDataBind(ClientContext &context,
+ 	auto projection = make_uniq<LogicalProjection>(bind_index, std::move(proj_exprs));
+ 	projection->children.push_back(std::move(filter));
+ 
+-	return projection;
++	return std::move(projection);
+ }
+ 
+ DuckLakeFlushInlinedDataFunction::DuckLakeFlushInlinedDataFunction()
+diff --git a/src/metadata_manager/quack_metadata_manager.cpp b/src/metadata_manager/quack_metadata_manager.cpp
+index 4455ad87..657de51f 100644
+--- a/src/metadata_manager/quack_metadata_manager.cpp
++++ b/src/metadata_manager/quack_metadata_manager.cpp
+@@ -45,7 +45,7 @@ unique_ptr<QueryResult> QuackMetadataManager::AttachMetadata(const string &attac
+ 		}
+ 		result = fresh_conn.Query(query);
+ 	}
+-	return result;
++	return std::move(result);
+ }
+ 
+ unique_ptr<QueryResult> QuackMetadataManager::Query(DuckLakeSnapshot snapshot, string query) {
+diff --git a/src/storage/ducklake_transaction.cpp b/src/storage/ducklake_transaction.cpp
+index 65222a5d..f9968055 100644
+--- a/src/storage/ducklake_transaction.cpp
++++ b/src/storage/ducklake_transaction.cpp
+@@ -1465,7 +1465,7 @@ unique_ptr<QueryResult> DuckLakeTransaction::ExecuteRaw(string query) {
+ 	if (cb) {
+ 		cb(query, end - start);
+ 	}
+-	return result;
++	return std::move(result);
+ }
+ 
+ unique_ptr<QueryResult> DuckLakeTransaction::Query(string query) {
