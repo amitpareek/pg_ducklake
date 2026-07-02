@@ -21,6 +21,7 @@ extern "C" {
 #include "access/table.h"
 #include "catalog/namespace.h"
 #include "catalog/pg_proc.h"
+#include "catalog/pg_type.h"
 #include "commands/defrem.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
@@ -370,7 +371,12 @@ QueryReferencesDucklakeOnlyFunc(Node *node, void *context) {
 }
 
 static PlannedStmt *
+#if PG_VERSION_NUM >= 190000
+DucklakePlannerHook(Query *parse, const char *query_string, int cursor_options, ParamListInfo bound_params,
+                    ExplainState *es) {
+#else
 DucklakePlannerHook(Query *parse, const char *query_string, int cursor_options, ParamListInfo bound_params) {
+#endif
 	if (pgducklake::enable_direct_insert) {
 		PlannedStmt *direct_insert_plan = pgducklake::TryCreateDirectInsertPlan(parse, bound_params);
 		if (direct_insert_plan)
@@ -393,7 +399,11 @@ DucklakePlannerHook(Query *parse, const char *query_string, int cursor_options, 
 		return pgddb::PlanNode(parse, cursor_options, /*throw_error=*/true);
 	}
 
+#if PG_VERSION_NUM >= 190000
+	return prev_planner_hook(parse, query_string, cursor_options, bound_params, es);
+#else
 	return prev_planner_hook(parse, query_string, cursor_options, bound_params);
+#endif
 }
 
 bool

@@ -42,7 +42,11 @@ struct VortexCache {
 static VortexCache g_cache;
 
 static void
+#if PG_VERSION_NUM >= 190000
+InvalidateVortexCache(Datum /*arg*/, SysCacheIdentifier /*cacheid*/, uint32 /*hashvalue*/) {
+#else
 InvalidateVortexCache(Datum /*arg*/, int /*cacheid*/, uint32 /*hashvalue*/) {
+#endif
 	g_cache.valid = false;
 }
 
@@ -112,23 +116,42 @@ ContainsReadVortex(Node *node, void *context) {
 }
 
 static PlannedStmt *
+#if PG_VERSION_NUM >= 190000
+VortexPlannerHook_Cpp(Query *parse, const char *query_string, int cursor_options, ParamListInfo bound_params,
+                      ExplainState *es) {
+#else
 VortexPlannerHook_Cpp(Query *parse, const char *query_string, int cursor_options, ParamListInfo bound_params) {
+#endif
 	RefreshVortexCache();
 
 	if (OidIsValid(g_cache.read_vortex_oid) && ContainsReadVortex((Node *)parse, nullptr)) {
 		return pg_vortex::PlanNode(parse, cursor_options, /*throw_error=*/true);
 	}
 
+#if PG_VERSION_NUM >= 190000
+	if (prev_planner_hook) {
+		return prev_planner_hook(parse, query_string, cursor_options, bound_params, es);
+	}
+	return standard_planner(parse, query_string, cursor_options, bound_params, es);
+#else
 	if (prev_planner_hook) {
 		return prev_planner_hook(parse, query_string, cursor_options, bound_params);
 	}
 	return standard_planner(parse, query_string, cursor_options, bound_params);
+#endif
 }
 
 static PlannedStmt *
+#if PG_VERSION_NUM >= 190000
+VortexPlannerHook(Query *parse, const char *query_string, int cursor_options, ParamListInfo bound_params,
+                  ExplainState *es) {
+	return InvokeCPPFunc(VortexPlannerHook_Cpp, parse, query_string, cursor_options, bound_params, es);
+}
+#else
 VortexPlannerHook(Query *parse, const char *query_string, int cursor_options, ParamListInfo bound_params) {
 	return InvokeCPPFunc(VortexPlannerHook_Cpp, parse, query_string, cursor_options, bound_params);
 }
+#endif
 
 void
 InitHooks() {

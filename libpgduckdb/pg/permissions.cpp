@@ -1,3 +1,5 @@
+#include "pgddb/pg/permissions.hpp"
+
 extern "C" {
 #include "postgres.h"
 #include "miscadmin.h"         // GetUserId

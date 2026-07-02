@@ -79,7 +79,7 @@ Duckdb_CreateCustomScanState(CustomScan *cscan) {
 	return (Node *)custom_scan_state;
 }
 
-void
+static void
 Duckdb_BeginCustomScan_Cpp(CustomScanState *cscanstate, EState *estate, int /*eflags*/) {
 	DuckdbScanState *duckdb_scan_state = (DuckdbScanState *)cscanstate;
 
@@ -326,7 +326,7 @@ Duckdb_ExecCustomScan(CustomScanState *node) {
 	return InvokeCPPFunc(Duckdb_ExecCustomScan_Cpp, node);
 }
 
-void
+static void
 Duckdb_EndCustomScan_Cpp(CustomScanState *node) {
 	DuckdbScanState *duckdb_scan_state = (DuckdbScanState *)node;
 	CleanupDuckdbScanState(duckdb_scan_state);
@@ -347,7 +347,7 @@ void
 Duckdb_ReScanCustomScan(CustomScanState * /*node*/) {
 }
 
-void
+static void
 Duckdb_ExplainCustomScan_Cpp(CustomScanState *node, ExplainState *es) {
 	// XXX: ExplainOneQueryHook does not run for EXPLAIN EXECUTE, so set these here too.
 	// It runs too late to affect the DuckDB query but keeps the code below from crashing

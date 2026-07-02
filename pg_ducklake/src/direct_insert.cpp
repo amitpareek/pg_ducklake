@@ -984,7 +984,12 @@ MakeDirectInsertPlannedStmt(Query *parse, List *custom_private) {
 	pstmt->transientPlan = false;
 	pstmt->dependsOnRole = false;
 	pstmt->parallelModeNeeded = false;
+#if PG_VERSION_NUM >= 190000
+	pstmt->resultRelationRelids = bms_make_singleton(parse->resultRelation);
+	pstmt->unprunableRelids = bms_make_singleton(parse->resultRelation);
+#else
 	pstmt->resultRelations = list_make1_int(parse->resultRelation);
+#endif
 	pstmt->rtable = parse->rtable;
 #if PG_VERSION_NUM >= 160000
 	pstmt->permInfos = parse->rteperminfos;

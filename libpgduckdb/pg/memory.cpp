@@ -1,4 +1,5 @@
 #include "pgddb/pgddb_utils.hpp"
+#include "pgddb/pg/memory.hpp"
 
 extern "C" {
 #include "postgres.h"

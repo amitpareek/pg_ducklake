@@ -5,9 +5,10 @@
 extern "C" {
 extern bool IsSubTransaction(void);
 
-#define FirstCommandId ((CommandId)0)
-
 // Vendored from PG so we can implement an XactCallback in C++.
+// Guarded by XACT_H to avoid redefinition errors when access/xact.h
+// has already been included.
+#ifndef XACT_H
 typedef enum {
 	XACT_EVENT_COMMIT,
 	XACT_EVENT_PARALLEL_COMMIT,
@@ -29,6 +30,10 @@ typedef enum {
 } SubXactEvent;
 
 typedef void (*SubXactCallback)(SubXactEvent event, SubTransactionId mySubid, SubTransactionId parentSubid, void *arg);
+
+/* Similarly guarded to avoid redefinition errors */
+#define FirstCommandId ((CommandId)0)
+#endif
 }
 
 namespace pgddb::pg {

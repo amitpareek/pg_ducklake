@@ -69,7 +69,7 @@ jobs:
     strategy: &ext-matrix
       fail-fast: false
       matrix:
-        version: [REL_17_STABLE, REL_18_STABLE]
+        version: [REL_17_STABLE, REL_18_STABLE, REL_19_STABLE]
 
     steps:
       - &checkout

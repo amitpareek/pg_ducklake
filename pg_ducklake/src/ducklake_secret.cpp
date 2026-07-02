@@ -242,7 +242,11 @@ IsSecretFdwServer(const char *servername) {
 bool secret_callback_configured = false;
 
 void
+#if PG_VERSION_NUM >= 190000
+InvalidateSecretsCallback(Datum, SysCacheIdentifier, uint32) {
+#else
 InvalidateSecretsCallback(Datum, int, uint32) {
+#endif
 	InvokeCPPFunc(pgducklake::DuckDBManager::InvalidateSecretsIfInitialized);
 }
 
@@ -359,7 +363,7 @@ extern "C" {
 
 DECLARE_PG_FUNCTION(ducklake_secret_fdw_handler) {
 	// Secrets only; no foreign tables are created on this FDW.
-	PG_RETURN_POINTER(nullptr);
+	PG_RETURN_POINTER((void *)nullptr);
 }
 
 DECLARE_PG_FUNCTION(ducklake_secret_fdw_validator) {

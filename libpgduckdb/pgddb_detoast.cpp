@@ -29,7 +29,7 @@ extern "C" {
 
 namespace pgddb {
 
-struct varlena *
+static struct varlena *
 PglzDecompressDatum(const struct varlena *value) {
 	struct varlena *result = (struct varlena *)duckdb_malloc(VARDATA_COMPRESSED_GET_EXTSIZE(value) + VARHDRSZ);
 
@@ -44,7 +44,7 @@ PglzDecompressDatum(const struct varlena *value) {
 	return result;
 }
 
-struct varlena *
+static struct varlena *
 Lz4DecompresDatum(const struct varlena *value) {
 #ifndef USE_LZ4
 	(void)value; /* keep compiler quiet */
@@ -79,7 +79,7 @@ ToastDecompressDatum(struct varlena *attr) {
 	}
 }
 
-bool
+static bool
 table_relation_fetch_toast_slice(const struct varatt_external &toast_pointer, int32 attrsize, struct varlena *result) {
 	Relation toast_rel = try_table_open(toast_pointer.va_toastrelid, AccessShareLock);
 

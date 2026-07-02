@@ -2,6 +2,8 @@
 
 #include <inttypes.h>
 
+#include "pg_config.h" // macro-only PG header, for PG_VERSION_NUM
+
 // Postgres C declarations for mostly-C++ files; must contain no C++, only PG C decls.
 
 extern "C" {
@@ -16,7 +18,11 @@ typedef struct BufferAccessStrategyData *BufferAccessStrategy;
 
 typedef double Cardinality;
 
+#if PG_VERSION_NUM >= 190000
+typedef uint64_t Datum;
+#else
 typedef uintptr_t Datum;
+#endif
 
 struct MemoryContextData;
 typedef MemoryContextData *MemoryContext;
@@ -47,8 +53,8 @@ struct DropStmt;
 struct IndexStmt;
 struct PlannedStmt;
 
-typedef char *Pointer;
-typedef Pointer Page;
+typedef char PageData;
+typedef PageData *Page;
 
 struct Query;
 

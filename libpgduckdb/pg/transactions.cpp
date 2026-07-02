@@ -6,10 +6,12 @@ extern "C" {
 #include "access/xlog.h" // XactLastRecEnd
 }
 
+#include "pgddb/pg/transactions.hpp"
+
 namespace pgddb::pg {
 
 CommandId
-GetCurrentCommandId(bool used = false) {
+GetCurrentCommandId(bool used) {
 	return PostgresFunctionGuard(::GetCurrentCommandId, used);
 }
 

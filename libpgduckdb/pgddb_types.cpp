@@ -1080,7 +1080,7 @@ numeric_typmod_scale(int32 typmod) {
 	return (((typmod - VARHDRSZ) & 0x7ff) ^ 1024) - 1024;
 }
 
-duckdb::LogicalType
+static duckdb::LogicalType
 ConvertPostgresToBaseDuckColumnType(Form_pg_attribute &attribute) {
 	int32 type_modifier = attribute->atttypmod;
 	Oid typoid = pgddb::pg::GetBaseTypeAndTypmod(attribute->atttypid, &type_modifier);
@@ -1223,7 +1223,7 @@ ConvertPostgresToDuckColumnType(Form_pg_attribute &attribute) {
 	return base_type;
 }
 
-Oid
+static Oid
 GetPostgresArrayDuckDBType(const duckdb::LogicalType &type, bool throw_error) {
 	switch (type.id()) {
 	case duckdb::LogicalTypeId::BOOLEAN:
@@ -1425,9 +1425,10 @@ static void
 AppendString(duckdb::Vector &result, Datum value, idx_t offset) {
 	bool should_free = false;
 	Datum v = DetoastIfExternal(value, &should_free);
-	const char *text = VARDATA_ANY(v);
+	void *ptr = DatumGetPointer(v);
+	const char *text = VARDATA_ANY(ptr);
 	/* Remove the padding of a BPCHAR type. DuckDB expects unpadded value. */
-	auto len = IS_BPCHAR ? bpchartruelen(VARDATA_ANY(v), VARSIZE_ANY_EXHDR(v)) : VARSIZE_ANY_EXHDR(v);
+	auto len = IS_BPCHAR ? bpchartruelen(VARDATA_ANY(ptr), VARSIZE_ANY_EXHDR(ptr)) : VARSIZE_ANY_EXHDR(ptr);
 	duckdb::string_t str(text, len);
 
 	auto data = duckdb::FlatVector::GetData<duckdb::string_t>(result);
@@ -1467,8 +1468,9 @@ static void
 AppendBlob(duckdb::Vector &result, Datum value, idx_t offset) {
 	bool should_free = false;
 	Datum v = DetoastIfExternal(value, &should_free);
-	const char *bytea_data = VARDATA_ANY(v);
-	size_t bytea_length = VARSIZE_ANY_EXHDR(v);
+	void *ptr = DatumGetPointer(v);
+	const char *bytea_data = VARDATA_ANY(ptr);
+	size_t bytea_length = VARSIZE_ANY_EXHDR(ptr);
 	const duckdb::string_t s(bytea_data, bytea_length);
 	auto data = duckdb::FlatVector::GetData<duckdb::string_t>(result);
 	data[offset] = duckdb::StringVector::AddStringOrBlob(result, s);
