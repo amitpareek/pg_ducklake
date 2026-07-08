@@ -1,6 +1,8 @@
 #include "pgducklake/guc.hpp"
 #include "pgducklake/maintenance_worker.hpp"
 
+#include <unistd.h>
+
 extern "C" {
 #include "postgres.h"
 
@@ -16,6 +18,14 @@ bool ctas_skip_data = false;
 
 bool enable_metadata_sync = true;
 
+int threads = -1;
+bool use_shared_worker = false;
+int worker_max_sessions = 4;
+int worker_arrow_pool_pages = 256;
+int worker_arrow_page_size = 1024 * 1024;
+int worker_scan_pool_size = 0;
+int worker_scan_producers = 4;
+
 char *superuser_role = strdup("ducklake_superuser");
 char *writer_role = strdup("ducklake_writer");
 char *reader_role = strdup("ducklake_reader");
@@ -27,8 +37,18 @@ bool maintenance_flush_inlined_data = true;
 bool maintenance_expire_snapshots = true;
 bool maintenance_cleanup_old_files = false;
 
+/* Default ducklake.max_worker_sessions to the CPU count. */
+static int
+DefaultWorkerConnections() {
+	long n = sysconf(_SC_NPROCESSORS_ONLN);
+	if (n >= 1 && n <= 1024)
+		return (int)n;
+	return 4;
+}
+
 void
 InitGUCs() {
+	worker_max_sessions = DefaultWorkerConnections();
 	DefineCustomStringVariable("ducklake.default_table_path",
 	                           "Default directory path for DuckLake tables. If set, tables will be "
 	                           "created under this path.",
@@ -43,6 +63,42 @@ InitGUCs() {
 	                         "Enable direct insert optimization for INSERT ... "
 	                         "SELECT UNNEST($n) statements.",
 	                         NULL, &enable_direct_insert, true, PGC_USERSET, 0, NULL, NULL, NULL);
+
+	DefineCustomIntVariable(
+	    "ducklake.threads", "Maximum number of DuckDB threads per Postgres backend (-1 = DuckDB default, all cores).",
+	    "Takes effect when the DuckDB instance initializes; SET before the first DuckLake query in a "
+	    "session, or call ducklake.recycle_ddb() to re-apply.",
+	    &threads, -1, -1, 1024, PGC_USERSET, 0, NULL, NULL, NULL);
+
+	DefineCustomBoolVariable("ducklake.use_shared_worker",
+	                         "Dispatch eligible read-only DuckLake/file queries to the shared DuckDB worker "
+	                         "process instead of executing DuckDB in this backend.",
+	                         NULL, &use_shared_worker, false, PGC_USERSET, 0, NULL, NULL, NULL);
+
+	DefineCustomIntVariable("ducklake.max_worker_sessions",
+	                        "Concurrent sessions the shared DuckDB worker serves (session-pool slots in "
+	                        "shared memory); further dispatches wait for a free slot.",
+	                        NULL, &worker_max_sessions, DefaultWorkerConnections(), 1, 1024, PGC_POSTMASTER, 0, NULL,
+	                        NULL, NULL);
+
+	DefineCustomIntVariable("ducklake.arrow_pool_pages",
+	                        "Shared-memory Arrow pages for the worker scan transport (0 disables the pool "
+	                        "and with it shared-worker heap scans).",
+	                        NULL, &worker_arrow_pool_pages, 256, 0, 65536, PGC_POSTMASTER, 0, NULL, NULL, NULL);
+
+	DefineCustomIntVariable("ducklake.arrow_page_size", "Size of one Arrow scan-transport page, in bytes.", NULL,
+	                        &worker_arrow_page_size, 1024 * 1024, 64 * 1024, 64 * 1024 * 1024, PGC_POSTMASTER, 0, NULL,
+	                        NULL, NULL);
+
+	DefineCustomIntVariable("ducklake.scan_pool_size",
+	                        "Scan-producer background workers per database for shared-worker heap scans "
+	                        "(0 = produce on the requesting backend).",
+	                        NULL, &worker_scan_pool_size, 0, 0, 64, PGC_POSTMASTER, 0, NULL, NULL, NULL);
+
+	DefineCustomIntVariable("ducklake.scan_producers",
+	                        "Parallel scan-producer tasks per shared-worker heap scan (capped by "
+	                        "ducklake.scan_pool_size).",
+	                        NULL, &worker_scan_producers, 4, 1, 64, PGC_USERSET, 0, NULL, NULL, NULL);
 
 	DefineCustomBoolVariable("ducklake.enable_metadata_sync",
 	                         "Enable reverse metadata sync from DuckDB to PostgreSQL. "

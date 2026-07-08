@@ -51,3 +51,7 @@ test: import_foreign_schema
 test: secrets
 test: access_control
 test: quoted_names
+test: worker_ping
+test: worker_eval
+test: worker_dispatch
+test: worker_hardening
