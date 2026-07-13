@@ -328,7 +328,13 @@ ORDER BY row_id;)",
 	return transaction.ExecuteRaw(query);
 }
 
-/* Same DuckDB routing as ReadInlinedData, but keeps deleted rows (no end_snapshot filter) for deletion vectors. */
+/* Same DuckDB routing as ReadInlinedData, but keeps deleted rows (no end_snapshot filter) for deletion vectors.
+ * Unlike ReadInlinedData (which filters to the single live version per row_id), this read keeps ALL versions,
+ * so a row_id can appear multiple times. The flush's delete-position query derives ordinals from
+ * ROW_NUMBER() OVER (ORDER BY row_id, begin_snapshot) - the physical read order MUST match that, or the
+ * positional delete file tombstones the wrong version and the latest value silently reverts. Over a Postgres
+ * heap scan, ORDER BY row_id alone leaves version ties to physical/TID order, not begin_snapshot - so the
+ * begin_snapshot tiebreaker is required here (mirrors upstream ducklake 8dd38ce0). */
 duckdb::unique_ptr<duckdb::QueryResult>
 PgDuckLakeMetadataManager::ReadAllInlinedDataForFlush(duckdb::DuckLakeSnapshot snapshot,
                                                       const duckdb::string &inlined_table_name,
@@ -338,7 +344,7 @@ PgDuckLakeMetadataManager::ReadAllInlinedDataForFlush(duckdb::DuckLakeSnapshot s
 SELECT %s
 FROM pgduckdb."%s".%s inlined_data
 WHERE %llu >= begin_snapshot
-ORDER BY row_id;)",
+ORDER BY row_id, begin_snapshot;)",
 	                                        projection, PGDUCKLAKE_PG_SCHEMA, duckdb::SQLIdentifier(inlined_table_name),
 	                                        (unsigned long long)snapshot.snapshot_id);
 	elog(DEBUG1, "ReadAllInlinedDataForFlush via DuckDB: %s", query.c_str());
