@@ -24,7 +24,7 @@ target "postgres" {
 
   contexts = {
     # AWS ECR Public mirror of the official postgres image (no Docker Hub limit).
-    postgres_base = "docker-image://public.ecr.aws/docker/library/postgres:${POSTGRES_VERSION}-bookworm"
+    postgres_base = "docker-image://mirror.gcr.io/library/postgres:${POSTGRES_VERSION}-bookworm"
   }
 
   args = {
