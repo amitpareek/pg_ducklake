@@ -21,7 +21,7 @@ PGDDB_OBJS := $(PGDDB_CPP_SRCS:.cpp=.o) $(PGDDB_C_SRCS:.c=.o)
 # tagged build dir, statically linked into the extension's .so.
 
 DUCKDB_GEN ?= ninja
-DUCKDB_VERSION = v1.5.6
+DUCKDB_VERSION = v2.0.0
 
 # Optional Apache Arrow support via the bundled nanoarrow DuckDB extension.
 # Default OFF -- when enabled, the cmake EXTENSION_CONFIGS file selects the
